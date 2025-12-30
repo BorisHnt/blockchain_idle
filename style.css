@@ -170,10 +170,22 @@ button.ghost {
 }
 
 .node-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  cursor: grab;
+}
+
+.drag-icon {
+  font-family: var(--mono);
+  color: var(--muted);
+  opacity: 0.7;
+  user-select: none;
+}
+
+.node-title-block {
+  text-align: center;
 }
 
 .node-title {
@@ -233,7 +245,8 @@ button.ghost {
   flex: 1;
 }
 
-.node-card.dragging {
+.node-card.dragging,
+.node-card.dragging .drag-handle {
   cursor: grabbing;
   opacity: 0.95;
 }

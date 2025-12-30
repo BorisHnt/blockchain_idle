@@ -316,8 +316,9 @@ function renderNodes() {
     card.dataset.node = meta.id;
 
     card.innerHTML = `
-      <div class="node-header">
-        <div>
+      <div class="node-header drag-handle">
+        <div class="drag-icon">⋮</div>
+        <div class="node-title-block">
           <div class="node-title">${meta.name}</div>
           <div class="node-sub">${meta.caption}</div>
         </div>
@@ -342,7 +343,7 @@ function renderNodes() {
     const unlockBtn = card.querySelector("[data-unlock]");
     upgradeBtn.addEventListener("click", () => handleUpgrade(meta.id));
     unlockBtn.addEventListener("click", () => unlockNode(meta.id));
-    card.addEventListener("pointerdown", (e) => startDrag(e, meta.id));
+    card.querySelector(".drag-handle").addEventListener("pointerdown", (e) => startDrag(e, meta.id));
 
     bindings[meta.id] = {
       card,
