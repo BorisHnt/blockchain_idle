@@ -159,6 +159,8 @@ button.ghost {
   padding: 14px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px);
+  cursor: grab;
+  user-select: none;
 }
 
 .node-card.locked {
@@ -229,6 +231,11 @@ button.ghost {
 
 .actions button {
   flex: 1;
+}
+
+.node-card.dragging {
+  cursor: grabbing;
+  opacity: 0.95;
 }
 
 .node-row {

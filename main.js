@@ -110,6 +110,7 @@ const CONNECTIONS = [
 const DEFAULT_STATE = {
   resources: { coin: 200, hash: 0, compute: 0, skill: 0 },
   nodes: buildDefaultNodes(),
+  layout: buildDefaultLayout(),
   lastSaved: Date.now(),
 };
 
@@ -166,6 +167,13 @@ function buildDefaultNodes() {
   }, {});
 }
 
+function buildDefaultLayout() {
+  return NODES.reduce((acc, meta) => {
+    acc[meta.id] = { x: meta.x, y: meta.y };
+    return acc;
+  }, {});
+}
+
 function deepClone(obj) {
   if (typeof structuredClone === "function") return structuredClone(obj);
   return JSON.parse(JSON.stringify(obj));
@@ -173,7 +181,13 @@ function deepClone(obj) {
 
 function loadState() {
   const baseNodes = buildDefaultNodes();
-  const baseState = { resources: { ...DEFAULT_STATE.resources }, nodes: baseNodes, lastSaved: Date.now() };
+  const baseLayout = buildDefaultLayout();
+  const baseState = {
+    resources: { ...DEFAULT_STATE.resources },
+    nodes: baseNodes,
+    layout: baseLayout,
+    lastSaved: Date.now(),
+  };
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return baseState;
   try {
@@ -181,6 +195,7 @@ function loadState() {
     const merged = {
       resources: { ...DEFAULT_STATE.resources, ...parsed.resources },
       nodes: { ...baseNodes, ...parsed.nodes },
+      layout: { ...baseLayout, ...(parsed.layout || {}) },
       lastSaved: parsed.lastSaved || Date.now(),
     };
     NODES.forEach((meta) => {
@@ -293,10 +308,11 @@ function handleUpgrade(id) {
 function renderNodes() {
   nodesContainer.innerHTML = "";
   NODES.forEach((meta) => {
+    const pos = getNodePosition(meta.id);
     const card = document.createElement("div");
     card.className = "node-card";
-    card.style.left = `${meta.x}px`;
-    card.style.top = `${meta.y}px`;
+    card.style.left = `${pos.x}px`;
+    card.style.top = `${pos.y}px`;
     card.dataset.node = meta.id;
 
     card.innerHTML = `
@@ -326,6 +342,7 @@ function renderNodes() {
     const unlockBtn = card.querySelector("[data-unlock]");
     upgradeBtn.addEventListener("click", () => handleUpgrade(meta.id));
     unlockBtn.addEventListener("click", () => unlockNode(meta.id));
+    card.addEventListener("pointerdown", (e) => startDrag(e, meta.id));
 
     bindings[meta.id] = {
       card,
@@ -351,6 +368,15 @@ function updateHud() {
   document.getElementById("rate-hash").textContent = `${formatRate(resourceRates.hash)}/s`;
   document.getElementById("rate-compute").textContent = `${formatRate(resourceRates.compute)}/s`;
   document.getElementById("rate-skill").textContent = `${formatRate(resourceRates.skill)}/s`;
+}
+
+function getNodePosition(id) {
+  return state.layout?.[id] || { x: getNodeMeta(id).x, y: getNodeMeta(id).y };
+}
+
+function setNodePosition(id, pos) {
+  state.layout = state.layout || {};
+  state.layout[id] = pos;
 }
 
 function updateNodeCard(id) {
@@ -455,6 +481,53 @@ function drawConnections() {
     path.setAttribute("opacity", active ? "0.9" : "0.4");
     wiresSvg.appendChild(path);
   });
+}
+
+let drag = null;
+
+function startDrag(e, id) {
+  const ui = bindings[id];
+  if (!ui) return;
+  if (e.target.tagName === "BUTTON") return;
+  e.preventDefault();
+  const rect = ui.card.getBoundingClientRect();
+  drag = {
+    id,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+  ui.card.classList.add("dragging");
+  document.addEventListener("pointermove", onDrag);
+  document.addEventListener("pointerup", endDrag);
+}
+
+function onDrag(e) {
+  if (!drag) return;
+  const ui = bindings[drag.id];
+  if (!ui) return;
+  const containerRect = playfield.getBoundingClientRect();
+  let x = e.clientX - containerRect.left - drag.offsetX;
+  let y = e.clientY - containerRect.top - drag.offsetY;
+  const maxX = containerRect.width - drag.width;
+  const maxY = containerRect.height - drag.height;
+  x = Math.max(0, Math.min(x, maxX));
+  y = Math.max(0, Math.min(y, maxY));
+  ui.card.style.left = `${x}px`;
+  ui.card.style.top = `${y}px`;
+  setNodePosition(drag.id, { x, y });
+  drawConnections();
+}
+
+function endDrag() {
+  if (!drag) return;
+  const ui = bindings[drag.id];
+  if (ui) ui.card.classList.remove("dragging");
+  document.removeEventListener("pointermove", onDrag);
+  document.removeEventListener("pointerup", endDrag);
+  saveState();
+  drag = null;
 }
 
 function label(resource) {
