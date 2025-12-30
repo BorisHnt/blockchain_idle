@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IDLE Techno Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="hud-left">
+        <div class="stat money">
+          <div class="label">Crédits CXT</div>
+          <div class="value" id="stat-coin">$0</div>
+          <div class="rate" id="rate-coin">+0/s</div>
+        </div>
+        <div class="stat hash">
+          <div class="label">Hashrate</div>
+          <div class="value" id="stat-hash">0</div>
+          <div class="rate" id="rate-hash">+0/s</div>
+        </div>
+        <div class="stat compute">
+          <div class="label">Compute</div>
+          <div class="value" id="stat-compute">0</div>
+          <div class="rate" id="rate-compute">+0/s</div>
+        </div>
+        <div class="stat skill">
+          <div class="label">Compétences</div>
+          <div class="value" id="stat-skill">0</div>
+          <div class="rate" id="rate-skill">+0/s</div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button id="save-btn">Sauvegarder</button>
+        <button id="reset-btn" class="ghost">Réinitialiser</button>
+        <div class="save-hint" id="save-hint">Auto-sauvegarde locale</div>
+      </div>
+    </header>
+
+    <main class="playfield" id="playfield">
+      <svg id="wires" class="wires" aria-hidden="true"></svg>
+      <div id="nodes" class="nodes"></div>
+    </main>
+
+    <footer class="footer">
+      <div>Jeu IDLE inspiré des pipelines tech · Sauvegarde locale automatique</div>
+      <div id="offline-gain" class="offline-gain"></div>
+    </footer>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
