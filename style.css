@@ -177,8 +177,8 @@ button.ghost {
   gap: 8px;
   cursor: grab;
   background: linear-gradient(120deg, rgba(77, 212, 255, 0.08), rgba(255, 159, 67, 0.06));
-  padding: 6px 8px;
-  min-height: 42px;
+  padding: 4px 8px;
+  min-height: 34px;
   margin: -14px -14px 10px;
   border-radius: 12px 12px 8px 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -200,6 +200,12 @@ button.ghost {
 .node-title {
   font-size: 15px;
   font-weight: 600;
+}
+
+.node-subline {
+  margin: -4px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .node-sub {

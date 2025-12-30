@@ -326,10 +326,10 @@ function renderNodes() {
         <div class="drag-icon">⋮</div>
         <div class="node-title-block">
           <div class="node-title">${meta.name}</div>
-          <div class="node-sub">${meta.caption}</div>
         </div>
         <div class="node-level">Niv. <span data-level>${getLevel(meta.id)}</span></div>
       </div>
+      <div class="node-subline">${meta.caption}</div>
       <div class="flow">
         ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
         <span class="pill output">Out: ${label(meta.output)}</span>
