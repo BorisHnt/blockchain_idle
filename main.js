@@ -199,6 +199,12 @@ function loadState() {
       lastSaved: parsed.lastSaved || Date.now(),
     };
     NODES.forEach((meta) => {
+      const pos = merged.layout[meta.id];
+      if (!pos || !isFinite(pos.x) || !isFinite(pos.y)) {
+        merged.layout[meta.id] = { x: meta.x, y: meta.y };
+      }
+    });
+    NODES.forEach((meta) => {
       const nodeState = merged.nodes[meta.id] || {};
       merged.nodes[meta.id] = {
         level: typeof nodeState.level === "number" ? nodeState.level : baseNodes[meta.id].level,
@@ -343,7 +349,11 @@ function renderNodes() {
     const unlockBtn = card.querySelector("[data-unlock]");
     upgradeBtn.addEventListener("click", () => handleUpgrade(meta.id));
     unlockBtn.addEventListener("click", () => unlockNode(meta.id));
-    card.querySelector(".drag-handle").addEventListener("pointerdown", (e) => startDrag(e, meta.id));
+    card.addEventListener("pointerdown", (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      if (!e.target.closest(".drag-handle") && e.currentTarget !== card) return;
+      startDrag(e, meta.id);
+    });
 
     bindings[meta.id] = {
       card,
@@ -489,7 +499,6 @@ let drag = null;
 function startDrag(e, id) {
   const ui = bindings[id];
   if (!ui) return;
-  if (e.target.tagName === "BUTTON") return;
   e.preventDefault();
   const rect = ui.card.getBoundingClientRect();
   drag = {
@@ -498,7 +507,10 @@ function startDrag(e, id) {
     offsetY: e.clientY - rect.top,
     width: rect.width,
     height: rect.height,
+    pointerId: e.pointerId,
   };
+  ui.card.setPointerCapture(e.pointerId);
+  ui.card.style.zIndex = 5;
   ui.card.classList.add("dragging");
   document.addEventListener("pointermove", onDrag);
   document.addEventListener("pointerup", endDrag);
@@ -524,7 +536,13 @@ function onDrag(e) {
 function endDrag() {
   if (!drag) return;
   const ui = bindings[drag.id];
-  if (ui) ui.card.classList.remove("dragging");
+  if (ui) {
+    ui.card.classList.remove("dragging");
+    ui.card.style.zIndex = "";
+    if (drag.pointerId && ui.card.hasPointerCapture(drag.pointerId)) {
+      ui.card.releasePointerCapture(drag.pointerId);
+    }
+  }
   document.removeEventListener("pointermove", onDrag);
   document.removeEventListener("pointerup", endDrag);
   saveState();
