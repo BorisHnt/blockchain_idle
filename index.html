@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IDLE Techno Game</title>
   <link rel="stylesheet" href="styles/base.css">
-  <link rel="stylesheet" href="src/modules/cpu/cpu.css">
-  <link rel="stylesheet" href="src/modules/gpu/gpu.css">
-  <link rel="stylesheet" href="src/modules/ram/ram.css">
-  <link rel="stylesheet" href="src/modules/algorithms/algorithms.css">
-  <link rel="stylesheet" href="src/modules/rnd/rnd.css">
-  <link rel="stylesheet" href="src/modules/cooling/cooling.css">
+  <link rel="stylesheet" href="src/modules/board/board.css">
 </head>
 <body>
   <div id="app">
@@ -50,14 +45,7 @@
     </header>
 
     <main class="shell">
-      <div class="modules-grid" id="module-grid">
-        <section id="mod-cpu" class="module-slot" aria-label="CPU Miner"></section>
-        <section id="mod-gpu" class="module-slot" aria-label="GPU Farm"></section>
-        <section id="mod-ram" class="module-slot" aria-label="RAM Cache"></section>
-        <section id="mod-algorithms" class="module-slot" aria-label="Algorithmes"></section>
-        <section id="mod-rnd" class="module-slot" aria-label="R&D"></section>
-        <section id="mod-cooling" class="module-slot" aria-label="Refroidissement"></section>
-      </div>
+      <section id="mod-board" class="module-slot" aria-label="Playfield"></section>
       <div id="offline-gain" class="offline-gain"></div>
     </main>
 

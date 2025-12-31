@@ -1,36 +1,20 @@
 import { createStore } from "./store.js";
 import { createBus } from "./events.js";
 import { clamp, formatNumber, formatRate, formatSeconds } from "./utils.js";
-import * as cpuModule from "../modules/cpu/cpu.module.js";
-import * as gpuModule from "../modules/gpu/gpu.module.js";
-import * as ramModule from "../modules/ram/ram.module.js";
-import * as algorithmsModule from "../modules/algorithms/algorithms.module.js";
-import * as rndModule from "../modules/rnd/rnd.module.js";
-import * as coolingModule from "../modules/cooling/cooling.module.js";
+import * as boardModule from "../modules/board/board.module.js";
 
 const STORAGE_KEY = "idle-techno-modular-v1";
-const VERSION = "0.2.0-modular";
+const VERSION = "0.3.0-board";
 const MAX_OFFLINE_SECONDS = 60 * 60 * 4;
 const MODULE_CONFIG = {
-  cpu: true,
-  gpu: true,
-  ram: true,
-  algorithms: true,
-  rnd: true,
-  cooling: true,
+  board: true,
 };
 
 const initialState = () => ({
   version: VERSION,
-  resources: { coin: 200, hash: 0, compute: 6, energy: 140, skill: 0 },
-  modules: {
-    cpu: { level: 1, cores: 1, unlocked: true, heat: 0 },
-    gpu: { level: 1, unlocked: true, temperature: 0 },
-    ram: { level: 0, unlocked: false },
-    algorithms: { level: 0, unlocked: false },
-    rnd: { level: 0, unlocked: false },
-    cooling: { level: 1, unlocked: true, efficiency: 1 },
-  },
+  resources: { ...boardModule.createBoardState().resources },
+  board: boardModule.createBoardState(),
+  modules: {},
   lastSaved: Date.now(),
 });
 
@@ -58,7 +42,7 @@ function bootstrap() {
 }
 
 function buildModules() {
-  const ordered = [coolingModule, algorithmsModule, ramModule, gpuModule, cpuModule, rndModule];
+  const ordered = [boardModule];
   return ordered.filter((mod) => MODULE_CONFIG[mod.id] !== false);
 }
 
@@ -75,7 +59,9 @@ function loop(now) {
   lastFrame = now;
   applyPassive(dt);
   modules.forEach((mod) => mod.tick?.(dt));
-  updateRates(dt);
+  if (!modules.some((m) => m.id === "board")) {
+    updateRates(dt);
+  }
   modules.forEach((mod) => mod.render?.());
   if (now - lastSave > 3000) {
     persistState();
@@ -146,9 +132,11 @@ function ensureMount(id, grid) {
 
 function persistState() {
   const snapshot = store.getState();
+  const now = Date.now();
   const safeSnapshot = {
     ...snapshot,
-    lastSaved: Date.now(),
+    lastSaved: now,
+    board: snapshot.board ? { ...snapshot.board, lastSaved: now } : snapshot.board,
   };
   storage.setItem(STORAGE_KEY, JSON.stringify(safeSnapshot));
 }
@@ -164,6 +152,7 @@ function loadState() {
       ...parsed,
       resources: { ...defaults.resources, ...(parsed.resources || {}) },
       modules: { ...defaults.modules, ...(parsed.modules || {}) },
+      board: parsed.board ? { ...boardModule.createBoardState(), ...parsed.board } : defaults.board,
       lastSaved: parsed.lastSaved || Date.now(),
     };
     applyOfflineGain(merged);
@@ -175,6 +164,7 @@ function loadState() {
 }
 
 function applyOfflineGain(state) {
+  if (state.board) return;
   const offlineEl = document.getElementById("offline-gain");
   const now = Date.now();
   const elapsed = Math.min((now - (state.lastSaved || now)) / 1000, MAX_OFFLINE_SECONDS);
@@ -202,6 +192,7 @@ function flashHint(text) {
 }
 
 function applyPassive(dt) {
+  if (modules.some((m) => m.id === "board")) return;
   store.setState((prev) => {
     const nextResources = { ...prev.resources };
     nextResources.energy = (nextResources.energy || 0) + 60 * dt;
