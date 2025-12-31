@@ -571,6 +571,7 @@ function renderNodes() {
     });
     const outputDot = card.querySelector(".io-dot.output");
     const inputDot = card.querySelector(".io-dot.input");
+    const energyDot = card.querySelector(".io-dot.energy:not(.output)");
     if (outputDot) {
       outputDot.addEventListener("pointerdown", (e) => startLink(e, meta.id));
     }
@@ -590,6 +591,7 @@ function renderNodes() {
       coreBtn,
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
+      energyDot,
       outputDot,
     };
 
@@ -761,7 +763,7 @@ function drawConnections() {
     const toMeta = getNodeMeta(conn.to);
     if (!hasOutputAnchor(fromMeta) || !hasInputAnchor(toMeta)) return;
     const start = getDotCenter(from.outputDot);
-    const end = getDotCenter(to.inputDot);
+    const end = isEnergyConnection(conn) ? getDotCenter(to.energyDot) : getDotCenter(to.inputDot);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const midX = (start.x + end.x) / 2;
     const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
