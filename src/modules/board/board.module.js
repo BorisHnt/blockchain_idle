@@ -520,6 +520,11 @@ function renderNodes() {
       </div>
       <div class="node-subline">${meta.caption}</div>
       <div class="io-group">
+        <div class="flow">
+          ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
+          ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
+          ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
+        </div>
         ${
           hasInputAnchor(meta) || hasOutputAnchor(meta)
             ? `<div class="io-column">
@@ -529,11 +534,6 @@ function renderNodes() {
               </div>`
             : ""
         }
-        <div class="flow">
-          ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
-          ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
-          ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
-        </div>
       </div>
       <div class="node-body">
         <div class="node-row"><span>Production</span><span class="node-rate" data-rate>0/s</span></div>
