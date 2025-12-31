@@ -1,7 +1,7 @@
 import { clamp, formatNumber, formatRate, formatSeconds } from "../../app/utils.js";
 import { createWires } from "./wires.js";
 import { createCablage } from "./cablage.js";
-import { bindIoDots } from "./interactions-io.js";
+import { bindIoDots, createIoContextMenu } from "./interactions-io.js";
 
 export const id = "board";
 export const name = "Playfield";
@@ -157,10 +157,9 @@ let drag = null;
 let linking = null;
 let accumulator = 0;
 let lastSave = performance.now();
-let contextMenuEl = null;
-let contextMenuCloser = null;
 let wires;
 let cablage;
+let ioMenu;
 
 export function createBoardState() {
   return {
@@ -188,6 +187,13 @@ export function init({ store: appStore, bus: appBus, mountEl }) {
   });
   ensureBoardState();
   renderLayout();
+  ioMenu = createIoContextMenu({
+    playfield,
+    cablage,
+    getNodeMeta,
+    getConnections: () => state.connections,
+    onDisconnect: (conn) => disconnectConnection(conn),
+  });
   wires = createWires({
     playfield,
     wiresSvg,
@@ -413,7 +419,7 @@ function hasEnergyConnection(id) {
 
 function tryCreateConnection(fromId, toId, targetType = "data") {
   if (!fromId || !toId || fromId === toId) return;
-  hideContextMenu();
+  ioMenu?.hide();
   state = cablage.tryCreate(state, fromId, toId, targetType);
   refreshWires();
   syncStore();
@@ -558,7 +564,7 @@ function renderNodes() {
     });
     const { outputDot, inputDot, energyDot } = bindIoDots(card, meta, {
       onStartLink: (evt, nodeId, outType) => startLink(evt, nodeId, outType),
-      onShowMenu: (evt, payload) => showContextMenu(evt, payload),
+      onShowMenu: (evt, payload) => ioMenu?.show(evt, payload),
     });
     bindings[meta.id] = {
       card,
@@ -782,7 +788,7 @@ function endDrag() {
 
 function startLink(e, fromId, explicitKind) {
   e.stopPropagation();
-  hideContextMenu();
+  ioMenu?.hide();
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
   const outType = explicitKind || e.currentTarget?.dataset?.outType || meta.output || "data";
@@ -803,7 +809,7 @@ function onLinkMove(e) {
 
 function endLink(e) {
   if (!linking) return;
-  hideContextMenu();
+  ioMenu?.hide();
   const targetDot = e.target.closest?.(".io-dot");
   if (targetDot) {
     const toCard = targetDot.closest(".node-card");
@@ -848,79 +854,14 @@ function flashHint(text) {
   }, 1200);
 }
 
-function onResize() {
-  refreshWires();
-}
-
-function showContextMenu(e, options) {
-  e.preventDefault();
-  e.stopPropagation();
-  hideContextMenu();
-  const { nodeId, kind, role } = options || {};
-  if (!nodeId) return;
-  const menu = document.createElement("div");
-  menu.className = "io-context-menu";
-  menu.dataset.nodeId = nodeId;
-  menu.dataset.role = role || "";
-
-  const relevantConnections = cablage.listByNodeAndRole(state.connections, nodeId, role);
-
-  if (relevantConnections.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "io-context-item muted";
-    empty.textContent = "Aucune connexion";
-    menu.appendChild(empty);
-  } else {
-    relevantConnections.forEach((conn) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "io-context-item";
-      const otherId = role === "output" ? conn.to : conn.from;
-      const otherMeta = getNodeMeta(otherId);
-      const labelText = otherMeta ? otherMeta.name : otherId;
-      item.textContent = `Déconnecter ${labelText}`;
-      item.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        removeConnection(conn);
-        hideContextMenu();
-      });
-      menu.appendChild(item);
-    });
-  }
-
-  playfield.appendChild(menu);
-  const rect = playfield.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  menu.style.left = `${Math.max(8, x + 10)}px`;
-  menu.style.top = `${Math.max(8, y + 10)}px`;
-  contextMenuEl = menu;
-
-  const handler = (ev) => {
-    if (contextMenuEl && contextMenuEl.contains(ev.target)) return;
-    hideContextMenu();
-  };
-  contextMenuCloser = handler;
-  setTimeout(() => {
-    document.addEventListener("pointerdown", handler, { capture: true });
-    document.addEventListener("wheel", handler, { passive: true });
-  }, 0);
-}
-
-function hideContextMenu() {
-  if (contextMenuEl && contextMenuEl.parentNode) {
-    contextMenuEl.parentNode.removeChild(contextMenuEl);
-  }
-  contextMenuEl = null;
-  if (contextMenuCloser) {
-    document.removeEventListener("pointerdown", contextMenuCloser, { capture: true });
-    document.removeEventListener("wheel", contextMenuCloser, { passive: true });
-  }
-  contextMenuCloser = null;
-}
-
-function removeConnection(conn) {
+function disconnectConnection(conn) {
   state = cablage.remove(state, conn);
   refreshWires();
   syncStore();
+  updateNodeCard(conn.from);
+  updateNodeCard(conn.to);
+}
+
+function onResize() {
+  refreshWires();
 }
