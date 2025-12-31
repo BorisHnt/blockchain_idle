@@ -148,7 +148,7 @@
 
 #mod-board .io-group {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: center;
   margin: 12px 0;
@@ -159,9 +159,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-self: end;
   gap: 10px;
   padding-top: 4px;
+}
+
+#mod-board .io-column-left {
+  justify-self: start;
+}
+
+#mod-board .io-column-right {
+  justify-self: end;
 }
 
 #mod-board .io-row {
