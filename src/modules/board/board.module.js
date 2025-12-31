@@ -131,10 +131,11 @@ const NODES = [
     baseRate: 1.05,
     efficiency: 1.25,
     baseCost: 260,
-    unlock: { coin: 260 },
     hideOutputAnchor: true,
     x: 1460,
     y: 280,
+    startUnlocked: true,
+    startLevel: 1,
   },
 ];
 
@@ -155,6 +156,7 @@ let linking = null;
 let accumulator = 0;
 let lastSave = performance.now();
 let contextMenuEl = null;
+let contextMenuCloser = null;
 
 export function createBoardState() {
   return {
@@ -238,6 +240,10 @@ function mergeBoardState(saved) {
           ? meta.baseCores || 0
           : undefined,
     };
+    if (meta.id === "collector") {
+      merged.nodes[meta.id].unlocked = true;
+      merged.nodes[meta.id].level = Math.max(1, merged.nodes[meta.id].level || 0);
+    }
   });
   merged.connections = merged.connections.filter((c) => {
     const from = getNodeMeta(c.from);
@@ -967,7 +973,8 @@ function showContextMenu(e, options) {
       const otherMeta = getNodeMeta(otherId);
       const labelText = otherMeta ? otherMeta.name : otherId;
       item.textContent = `Déconnecter ${labelText}`;
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (evt) => {
+        evt.stopPropagation();
         removeConnection(conn);
         hideContextMenu();
       });
@@ -983,9 +990,14 @@ function showContextMenu(e, options) {
   menu.style.top = `${Math.max(8, y + 10)}px`;
   contextMenuEl = menu;
 
+  const handler = (ev) => {
+    if (contextMenuEl && contextMenuEl.contains(ev.target)) return;
+    hideContextMenu();
+  };
+  contextMenuCloser = handler;
   setTimeout(() => {
-    document.addEventListener("pointerdown", hideContextMenu, { once: true });
-    document.addEventListener("wheel", hideContextMenu, { once: true, passive: true });
+    document.addEventListener("pointerdown", handler, { once: true });
+    document.addEventListener("wheel", handler, { once: true, passive: true });
   }, 0);
 }
 
@@ -994,6 +1006,7 @@ function hideContextMenu() {
     contextMenuEl.parentNode.removeChild(contextMenuEl);
   }
   contextMenuEl = null;
+  contextMenuCloser = null;
 }
 
 function removeConnection(conn) {
