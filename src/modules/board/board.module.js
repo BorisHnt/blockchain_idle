@@ -160,6 +160,8 @@ let lastSave = performance.now();
 let wires;
 let cablage;
 let ioMenu;
+let energyProdRate = 0;
+let energyBalanceRate = 0;
 
 export function createBoardState() {
   return {
@@ -360,7 +362,10 @@ function isEnergyConnection(conn) {
 function applyOfflineProgress(savedState) {
   const now = Date.now();
   const elapsed = Math.min((now - (savedState.lastSaved || now)) / 1000, MAX_OFFLINE_SECONDS);
-  if (elapsed <= 0) return;
+  if (elapsed <= 0) {
+    if (offlineGainEl) offlineGainEl.textContent = "";
+    return;
+  }
   const steps = Math.ceil(elapsed / 5); // 5s chunks
   const stepDuration = elapsed / steps;
   let gainedCoin = 0;
@@ -368,8 +373,9 @@ function applyOfflineProgress(savedState) {
     const net = simulateProduction(stepDuration, savedState);
     gainedCoin += net.coin > 0 ? net.coin : 0;
   }
-  if (gainedCoin > 0 && offlineGainEl) {
-    offlineGainEl.textContent = `+${formatNumber(gainedCoin)} CXT hors-ligne (${formatSeconds(elapsed)})`;
+  if (offlineGainEl) {
+    offlineGainEl.textContent =
+      gainedCoin > 0 ? `+${formatNumber(gainedCoin)} CXT hors-ligne (${formatSeconds(elapsed)})` : "";
   }
 }
 
@@ -512,6 +518,20 @@ function renderNodes() {
         <div class="node-level">Niv. <span data-level>${getLevel(meta.id)}</span></div>
       </div>
       <div class="node-subline">${meta.caption}</div>
+      ${
+        meta.id === "energy"
+          ? `<div class="energy-hero">
+              <div class="energy-logo" data-energy-logo>
+                <svg viewBox="0 0 80 120" aria-hidden="true" focusable="false">
+                  <path d="M44 6 14 70h22l-8 44 38-68H46l8-40z" />
+                </svg>
+              </div>
+              <div class="energy-bar">
+                <div class="energy-bar-fill" data-energy-bar></div>
+              </div>
+            </div>`
+          : ""
+      }
       <div class="io-group">
         <div class="io-column io-column-left">
           ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}
@@ -579,6 +599,8 @@ function renderNodes() {
       inputDot,
       energyDot,
       outputDot,
+      energyLogo: card.querySelector("[data-energy-logo]"),
+      energyBar: card.querySelector("[data-energy-bar]"),
     };
 
     nodesContainer.appendChild(card);
@@ -592,7 +614,6 @@ function updateHud() {
     ["hash", "stat-hash", "rate-hash", "Hash"],
     ["compute", "stat-compute", "rate-compute", "Compute"],
     ["skill", "stat-skill", "rate-skill", "XP"],
-    ["energy", "stat-energy", "rate-energy", "W"],
   ];
   hud.forEach(([key, valueId, rateId, suffix]) => {
     const valueEl = document.getElementById(valueId);
@@ -600,6 +621,14 @@ function updateHud() {
     if (valueEl) valueEl.textContent = `${formatNumber(state.resources[key] || 0)}${suffix ? ` ${suffix}` : ""}`;
     if (rateEl) rateEl.textContent = `${formatRate(resourceRates[key] || 0)}/s`;
   });
+
+  const energyValEl = document.getElementById("stat-energy");
+  const energyRateEl = document.getElementById("rate-energy");
+  if (energyValEl) energyValEl.textContent = `${formatNumber(energyProdRate)} W`;
+  if (energyRateEl) {
+    energyRateEl.textContent = formatSignedW(energyBalanceRate);
+    energyRateEl.style.color = energyBalanceRate >= 0 ? "var(--good)" : "var(--danger)";
+  }
 }
 
 function getNodePosition(id) {
@@ -674,16 +703,24 @@ function updateNodeCard(id) {
     ui.statusEl.style.color = canRun ? "var(--good)" : "var(--danger)";
   }
   ui.card.classList.toggle("idle", !canRun);
+
+  if (meta.id === "energy") {
+    updateEnergyHero(ui);
+  }
 }
 
 function runProduction(delta) {
   const net = simulateProduction(delta, state);
+  const producedRate = (net.energyProduced || 0) / delta;
+  const consumedRate = (net.energyConsumed || 0) / delta;
+  energyProdRate = energyProdRate * 0.7 + producedRate * 0.3;
+  energyBalanceRate = energyBalanceRate * 0.7 + (producedRate - consumedRate) * 0.3;
   NODES.forEach((meta) => updateNodeCard(meta.id));
   return net;
 }
 
 function simulateProduction(delta, targetState) {
-  const net = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
+  const net = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0, energyProduced: 0, energyConsumed: 0 };
   NODES.forEach((meta) => {
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
@@ -706,6 +743,7 @@ function simulateProduction(delta, targetState) {
       const consumeEnergy = needed * factor;
       targetState.resources.energy = Math.max(0, available - consumeEnergy);
       net.energy -= consumeEnergy;
+      net.energyConsumed += consumeEnergy;
     }
     if (meta.input) {
       const ratio = meta.inputRatio || 1;
@@ -722,6 +760,9 @@ function simulateProduction(delta, targetState) {
     }
     targetState.resources[meta.output] = (targetState.resources[meta.output] || 0) + work;
     net[meta.output] += work;
+    if (meta.output === "energy") {
+      net.energyProduced += work;
+    }
   });
   return net;
 }
@@ -840,6 +881,35 @@ function label(resource) {
       return "W";
     default:
       return resource;
+  }
+}
+
+function formatSignedW(value) {
+  const abs = Math.abs(value);
+  if (abs < 0.01) return "0 W";
+  const formatted = abs < 1 ? abs.toFixed(2) : abs.toFixed(1);
+  const prefix = value > 0 ? "+" : "-";
+  return `${prefix}${formatted} W`;
+}
+
+function getEnergyLoadPercent() {
+  const prod = Math.max(0, energyProdRate);
+  if (prod <= 0.0001) return 0;
+  const consumed = Math.max(0, prod - energyBalanceRate);
+  return (consumed / prod) * 100;
+}
+
+function updateEnergyHero(ui) {
+  const pct = getEnergyLoadPercent();
+  const overload = pct > 100;
+  if (ui.energyLogo) {
+    ui.energyLogo.style.setProperty("--energy-color", overload ? "#ff5f7a" : "#ffd166");
+    ui.energyLogo.classList.toggle("overload", overload);
+  }
+  if (ui.energyBar) {
+    const width = Math.min(160, pct); // allow slight overflow for overuse
+    ui.energyBar.style.width = `${width}%`;
+    ui.energyBar.classList.toggle("overload", overload);
   }
 }
 
