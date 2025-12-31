@@ -1,4 +1,7 @@
 import { clamp, formatNumber, formatRate, formatSeconds } from "../../app/utils.js";
+import { createWires } from "./wires.js";
+import { createCablage } from "./cablage.js";
+import { bindIoDots } from "./interactions-io.js";
 
 export const id = "board";
 export const name = "Playfield";
@@ -150,13 +153,14 @@ let offlineGainEl;
 let state;
 let bindings = {};
 let resourceRates = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
-let linkPreview = null;
 let drag = null;
 let linking = null;
 let accumulator = 0;
 let lastSave = performance.now();
 let contextMenuEl = null;
 let contextMenuCloser = null;
+let wires;
+let cablage;
 
 export function createBoardState() {
   return {
@@ -174,11 +178,26 @@ export function init({ store: appStore, bus: appBus, mountEl }) {
   bus = appBus;
   mount = mountEl;
   offlineGainEl = document.getElementById("offline-gain");
+  cablage = createCablage({
+    getNodeMeta,
+    hasInputAnchor,
+    hasOutputAnchor,
+    hasEnergyInput,
+    isUnlocked,
+    flashHint,
+  });
   ensureBoardState();
   renderLayout();
+  wires = createWires({
+    playfield,
+    wiresSvg,
+    getNodeMeta,
+    isUnlocked,
+    getLevel,
+  });
   applyOfflineProgress(state);
   renderNodes();
-  drawConnections();
+  wires.render(state.connections, bindings);
   updateHud();
   window.addEventListener("resize", onResize);
 }
@@ -395,48 +414,8 @@ function hasEnergyConnection(id) {
 function tryCreateConnection(fromId, toId, targetType = "resource") {
   if (!fromId || !toId || fromId === toId) return;
   hideContextMenu();
-  const fromMeta = getNodeMeta(fromId);
-  const toMeta = getNodeMeta(toId);
-  if (!fromMeta || !toMeta) return;
-  const isEnergy = targetType === "energy";
-  if (!hasOutputAnchor(fromMeta)) {
-    flashHint("Connexion impossible");
-    return;
-  }
-  if (!isUnlocked(fromId)) {
-    flashHint("Débloque d'abord");
-    return;
-  }
-  if (!isUnlocked(toId)) {
-    flashHint("Débloque d'abord");
-    return;
-  }
-  if (isEnergy) {
-    if (!hasEnergyInput(toMeta)) {
-      flashHint("Pas d'entrée énergie");
-      return;
-    }
-    if (fromMeta.output !== "energy") {
-      flashHint("Sortie non énergie");
-      return;
-    }
-  } else {
-    if (!hasInputAnchor(toMeta)) {
-      flashHint("Ce module n'a pas d'entrée");
-      return;
-    }
-    if (fromMeta.output !== toMeta.input) {
-      flashHint("Ressources incompatibles");
-      return;
-    }
-  }
-  const exists = state.connections.some((c) => c.from === fromId && c.to === toId && c.kind === targetType);
-  if (exists) {
-    flashHint("Déjà connecté");
-    return;
-  }
-  state.connections.push({ from: fromId, to: toId, kind: isEnergy ? "energy" : "resource" });
-  drawConnections();
+  state = cablage.tryCreate(state, fromId, toId, targetType);
+  refreshWires();
   syncStore();
 }
 
@@ -466,7 +445,7 @@ function unlockNode(id) {
   state.resources.skill -= skill;
   state.nodes[id] = { ...state.nodes[id], unlocked: true, level: Math.max(1, getLevel(id)) };
   updateNodeCard(id);
-  drawConnections();
+  refreshWires();
   syncStore();
 }
 
@@ -483,7 +462,7 @@ function handleUpgrade(id) {
   state.resources.coin -= cost;
   state.nodes[id] = { ...state.nodes[id], level: getLevel(id) + 1, unlocked: true };
   updateNodeCard(id);
-  drawConnections();
+  refreshWires();
   syncStore();
 }
 
@@ -503,7 +482,7 @@ function addCore(id) {
   state.resources.coin -= cost;
   state.nodes[id] = { ...state.nodes[id], cores: cores + 1 };
   updateNodeCard(id);
-  drawConnections();
+  refreshWires();
   syncStore();
 }
 
@@ -577,24 +556,10 @@ function renderNodes() {
       if (!e.target.closest(".drag-handle")) return;
       startDrag(e, meta.id);
     });
-    const outputDot = card.querySelector(".io-dot.output");
-    const inputDot = card.querySelector(".io-dot.input");
-    const energyDot = card.querySelector(".io-dot.energy:not(.output)");
-    if (outputDot) {
-      outputDot.addEventListener("pointerdown", (e) => startLink(e, meta.id));
-      outputDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.output, role: "output" }));
-    }
-    if (inputDot) {
-      inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
-      inputDot.addEventListener("pointerleave", () => inputDot.classList.remove("hover"));
-      inputDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
-      inputDot.addEventListener("click", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
-    }
-    if (energyDot) {
-      energyDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
-      energyDot.addEventListener("click", (e) => showContextMenu(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
-    }
-
+    const { outputDot, inputDot, energyDot } = bindIoDots(card, meta, {
+      onStartLink: (evt, nodeId, outType) => startLink(evt, nodeId, outType),
+      onShowMenu: (evt, payload) => showContextMenu(evt, payload),
+    });
     bindings[meta.id] = {
       card,
       levelEl: card.querySelector("[data-level]"),
@@ -641,11 +606,10 @@ function setNodePosition(id, pos) {
   syncStore();
 }
 
-function getDotCenter(el) {
-  if (!el) return { x: 0, y: 0 };
-  const rect = el.getBoundingClientRect();
-  const parent = playfield.getBoundingClientRect();
-  return { x: rect.left - parent.left + rect.width / 2, y: rect.top - parent.top + rect.height / 2 };
+function refreshWires() {
+  if (wires) {
+    wires.render(state.connections, bindings);
+  }
 }
 
 function updateNodeCard(id) {
@@ -763,63 +727,6 @@ function smoothRates(net, delta) {
   });
 }
 
-function drawConnections() {
-  const rect = playfield.getBoundingClientRect();
-  wiresSvg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
-  wiresSvg.setAttribute("width", rect.width);
-  wiresSvg.setAttribute("height", rect.height);
-  wiresSvg.innerHTML = "";
-
-  state.connections.forEach((conn) => {
-    const from = bindings[conn.from];
-    const to = bindings[conn.to];
-    if (!from || !to) return;
-    const fromMeta = getNodeMeta(conn.from);
-    const toMeta = getNodeMeta(conn.to);
-    const isEnergy = isEnergyConnection(conn);
-    if (!hasOutputAnchor(fromMeta)) return;
-    if (isEnergy) {
-      if (!hasEnergyInput(toMeta)) return;
-    } else if (!hasInputAnchor(toMeta)) {
-      return;
-    }
-    const start = getDotCenter(from.outputDot);
-    const targetEnergyDot = to.energyDot || to.inputDot;
-    const end = isEnergy ? getDotCenter(targetEnergyDot) : getDotCenter(to.inputDot);
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const midX = (start.x + end.x) / 2;
-    const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
-    path.setAttribute("d", d);
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke-width", "3");
-    path.setAttribute("stroke-linecap", "round");
-    const active = isUnlocked(conn.from) && getLevel(conn.from) > 0;
-    const color = isEnergy ? "#ffd166" : "#4dd4ff";
-    path.setAttribute("stroke", active ? color : "rgba(255,255,255,0.15)");
-    path.setAttribute("opacity", active ? "0.9" : "0.4");
-    wiresSvg.appendChild(path);
-  });
-
-  if (linkPreview) {
-    const { fromId, toPoint } = linkPreview;
-    const from = bindings[fromId];
-    if (from) {
-      const start = getDotCenter(from.outputDot);
-      const midX = (start.x + toPoint.x) / 2;
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${toPoint.y}, ${toPoint.x} ${toPoint.y}`;
-      path.setAttribute("d", d);
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke-width", "2");
-      path.setAttribute("stroke-dasharray", "6 4");
-      const isEnergy = linking?.kind === "energy";
-      path.setAttribute("stroke", isEnergy ? "rgba(255,209,102,0.85)" : "rgba(77,212,255,0.8)");
-      path.setAttribute("opacity", "0.8");
-      wiresSvg.appendChild(path);
-    }
-  }
-}
-
 function startDrag(e, id) {
   const ui = bindings[id];
   if (!ui) return;
@@ -854,7 +761,7 @@ function onDrag(e) {
   ui.card.style.left = `${x}px`;
   ui.card.style.top = `${y}px`;
   setNodePosition(drag.id, { x, y });
-  drawConnections();
+  refreshWires();
 }
 
 function endDrag() {
@@ -873,25 +780,25 @@ function endDrag() {
   drag = null;
 }
 
-function startLink(e, fromId) {
+function startLink(e, fromId, explicitKind) {
   e.stopPropagation();
   hideContextMenu();
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
-  const outType = e.currentTarget?.dataset?.outType || meta.output || "resource";
+  const outType = explicitKind || e.currentTarget?.dataset?.outType || meta.output || "resource";
   linking = { fromId, kind: outType === "energy" ? "energy" : "resource" };
   const rect = playfield.getBoundingClientRect();
-  linkPreview = { fromId, toPoint: { x: e.clientX - rect.left, y: e.clientY - rect.top } };
+  const toPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  wires.setPreview({ fromId, toPoint, kind: linking.kind });
   document.addEventListener("pointermove", onLinkMove);
   document.addEventListener("pointerup", endLink);
-  drawConnections();
 }
 
 function onLinkMove(e) {
   if (!linking) return;
   const rect = playfield.getBoundingClientRect();
-  linkPreview = { fromId: linking.fromId, toPoint: { x: e.clientX - rect.left, y: e.clientY - rect.top } };
-  drawConnections();
+  const toPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  wires.setPreview({ fromId: linking.fromId, toPoint, kind: linking.kind });
 }
 
 function endLink(e) {
@@ -907,10 +814,10 @@ function endLink(e) {
     tryCreateConnection(linking.fromId, toId, kind);
   }
   linking = null;
-  linkPreview = null;
+  wires.clearPreview();
   document.removeEventListener("pointermove", onLinkMove);
   document.removeEventListener("pointerup", endLink);
-  drawConnections();
+  refreshWires();
 }
 
 function label(resource) {
@@ -942,7 +849,7 @@ function flashHint(text) {
 }
 
 function onResize() {
-  drawConnections();
+  refreshWires();
 }
 
 function showContextMenu(e, options) {
@@ -956,12 +863,7 @@ function showContextMenu(e, options) {
   menu.dataset.nodeId = nodeId;
   menu.dataset.role = role || "";
 
-  const relevantConnections = state.connections.filter((c) => {
-    if (role === "output") return c.from === nodeId && (kind === "energy" ? isEnergyConnection(c) : !isEnergyConnection(c));
-    if (role === "input") return c.to === nodeId && !isEnergyConnection(c);
-    if (role === "input-energy") return c.to === nodeId && isEnergyConnection(c);
-    return false;
-  });
+  const relevantConnections = cablage.listByNodeAndRole(state.connections, nodeId, role);
 
   if (relevantConnections.length === 0) {
     const empty = document.createElement("div");
@@ -1014,9 +916,7 @@ function hideContextMenu() {
 }
 
 function removeConnection(conn) {
-  state.connections = state.connections.filter(
-    (c) => !(c.from === conn.from && c.to === conn.to && c.kind === conn.kind)
-  );
-  drawConnections();
+  state = cablage.remove(state, conn);
+  refreshWires();
   syncStore();
 }
