@@ -588,9 +588,11 @@ function renderNodes() {
       inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
       inputDot.addEventListener("pointerleave", () => inputDot.classList.remove("hover"));
       inputDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
+      inputDot.addEventListener("click", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
     }
     if (energyDot) {
       energyDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
+      energyDot.addEventListener("click", (e) => showContextMenu(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
     }
 
     bindings[meta.id] = {
@@ -951,6 +953,8 @@ function showContextMenu(e, options) {
   if (!nodeId) return;
   const menu = document.createElement("div");
   menu.className = "io-context-menu";
+  menu.dataset.nodeId = nodeId;
+  menu.dataset.role = role || "";
 
   const relevantConnections = state.connections.filter((c) => {
     if (role === "output") return c.from === nodeId && (kind === "energy" ? isEnergyConnection(c) : !isEnergyConnection(c));
