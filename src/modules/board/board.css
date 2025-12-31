@@ -221,6 +221,43 @@
   box-shadow: 0 0 0 4px rgba(77, 212, 255, 0.25);
 }
 
+#mod-board .io-context-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 180px;
+  background: rgba(14, 17, 22, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  backdrop-filter: blur(6px);
+}
+
+#mod-board .io-context-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+#mod-board .io-context-item:hover {
+  background: rgba(77, 212, 255, 0.12);
+}
+
+#mod-board .io-context-item.muted {
+  color: var(--muted);
+  cursor: default;
+}
+
 #mod-board .node-body {
   display: flex;
   flex-direction: column;

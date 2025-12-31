@@ -154,6 +154,7 @@ let drag = null;
 let linking = null;
 let accumulator = 0;
 let lastSave = performance.now();
+let contextMenuEl = null;
 
 export function createBoardState() {
   return {
@@ -387,6 +388,7 @@ function hasEnergyConnection(id) {
 
 function tryCreateConnection(fromId, toId, targetType = "resource") {
   if (!fromId || !toId || fromId === toId) return;
+  hideContextMenu();
   const fromMeta = getNodeMeta(fromId);
   const toMeta = getNodeMeta(toId);
   if (!fromMeta || !toMeta) return;
@@ -532,7 +534,7 @@ function renderNodes() {
         <div class="io-column io-column-right">
           ${
             hasOutputAnchor(meta)
-              ? `<div class="io-dot output ${meta.output === "energy" ? "energy" : ""}" title="Sortie" data-io="output"></div>`
+              ? `<div class="io-dot output ${meta.output === "energy" ? "energy" : ""}" title="Sortie" data-io="output" data-out-type="${meta.output}"></div>`
               : ""
           }
         </div>
@@ -574,10 +576,15 @@ function renderNodes() {
     const energyDot = card.querySelector(".io-dot.energy:not(.output)");
     if (outputDot) {
       outputDot.addEventListener("pointerdown", (e) => startLink(e, meta.id));
+      outputDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.output, role: "output" }));
     }
     if (inputDot) {
       inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
       inputDot.addEventListener("pointerleave", () => inputDot.classList.remove("hover"));
+      inputDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
+    }
+    if (energyDot) {
+      energyDot.addEventListener("contextmenu", (e) => showContextMenu(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
     }
 
     bindings[meta.id] = {
@@ -797,8 +804,7 @@ function drawConnections() {
       path.setAttribute("fill", "none");
       path.setAttribute("stroke-width", "2");
       path.setAttribute("stroke-dasharray", "6 4");
-      const meta = getNodeMeta(fromId);
-      const isEnergy = meta?.output === "energy";
+      const isEnergy = linking?.kind === "energy";
       path.setAttribute("stroke", isEnergy ? "rgba(255,209,102,0.85)" : "rgba(77,212,255,0.8)");
       path.setAttribute("opacity", "0.8");
       wiresSvg.appendChild(path);
@@ -861,9 +867,11 @@ function endDrag() {
 
 function startLink(e, fromId) {
   e.stopPropagation();
+  hideContextMenu();
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
-  linking = { fromId, kind: meta.output === "energy" ? "energy" : "resource" };
+  const outType = e.currentTarget?.dataset?.outType || meta.output || "resource";
+  linking = { fromId, kind: outType === "energy" ? "energy" : "resource" };
   const rect = playfield.getBoundingClientRect();
   linkPreview = { fromId, toPoint: { x: e.clientX - rect.left, y: e.clientY - rect.top } };
   document.addEventListener("pointermove", onLinkMove);
@@ -880,13 +888,14 @@ function onLinkMove(e) {
 
 function endLink(e) {
   if (!linking) return;
+  hideContextMenu();
   const targetDot = e.target.closest?.(".io-dot");
   if (targetDot) {
     const toCard = targetDot.closest(".node-card");
     const toId = toCard?.dataset.node;
     const fromMeta = getNodeMeta(linking.fromId);
     const prefersEnergy = fromMeta?.output === "energy" || linking.kind === "energy";
-    const kind = targetDot.dataset.io === "energy" || prefersEnergy ? "energy" : "resource";
+    const kind = targetDot.dataset.io === "energy" ? "energy" : prefersEnergy ? "energy" : "resource";
     tryCreateConnection(linking.fromId, toId, kind);
   }
   linking = null;
@@ -926,4 +935,71 @@ function flashHint(text) {
 
 function onResize() {
   drawConnections();
+}
+
+function showContextMenu(e, options) {
+  e.preventDefault();
+  e.stopPropagation();
+  hideContextMenu();
+  const { nodeId, kind, role } = options || {};
+  if (!nodeId) return;
+  const menu = document.createElement("div");
+  menu.className = "io-context-menu";
+
+  const relevantConnections = state.connections.filter((c) => {
+    if (role === "output") return c.from === nodeId && (kind === "energy" ? isEnergyConnection(c) : !isEnergyConnection(c));
+    if (role === "input") return c.to === nodeId && !isEnergyConnection(c);
+    if (role === "input-energy") return c.to === nodeId && isEnergyConnection(c);
+    return false;
+  });
+
+  if (relevantConnections.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "io-context-item muted";
+    empty.textContent = "Aucune connexion";
+    menu.appendChild(empty);
+  } else {
+    relevantConnections.forEach((conn) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "io-context-item";
+      const otherId = role === "output" ? conn.to : conn.from;
+      const otherMeta = getNodeMeta(otherId);
+      const labelText = otherMeta ? otherMeta.name : otherId;
+      item.textContent = `Déconnecter ${labelText}`;
+      item.addEventListener("click", () => {
+        removeConnection(conn);
+        hideContextMenu();
+      });
+      menu.appendChild(item);
+    });
+  }
+
+  document.body.appendChild(menu);
+  const rect = playfield.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  menu.style.left = `${Math.max(8, x + 10)}px`;
+  menu.style.top = `${Math.max(8, y + 10)}px`;
+  contextMenuEl = menu;
+
+  setTimeout(() => {
+    document.addEventListener("pointerdown", hideContextMenu, { once: true });
+    document.addEventListener("wheel", hideContextMenu, { once: true, passive: true });
+  }, 0);
+}
+
+function hideContextMenu() {
+  if (contextMenuEl && contextMenuEl.parentNode) {
+    contextMenuEl.parentNode.removeChild(contextMenuEl);
+  }
+  contextMenuEl = null;
+}
+
+function removeConnection(conn) {
+  state.connections = state.connections.filter(
+    (c) => !(c.from === conn.from && c.to === conn.to && c.kind === conn.kind)
+  );
+  drawConnections();
+  syncStore();
 }
