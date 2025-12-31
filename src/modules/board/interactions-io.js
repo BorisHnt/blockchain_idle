@@ -12,7 +12,10 @@ export function bindIoDots(card, meta, handlers) {
   if (inputDot) {
     inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
     inputDot.addEventListener("pointerleave", () => inputDot.classList.remove("hover"));
-    inputDot.addEventListener("click", (e) => handlers.onShowMenu?.(e, { nodeId: meta.id, kind: meta.input, role: "input" }));
+    inputDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlers.onShowMenu?.(e, { nodeId: meta.id, kind: meta.input, role: "input" });
+    });
     inputDot.addEventListener("contextmenu", (e) =>
       handlers.onShowMenu?.(e, { nodeId: meta.id, kind: meta.input, role: "input" })
     );
@@ -20,7 +23,10 @@ export function bindIoDots(card, meta, handlers) {
   if (energyDot) {
     energyDot.addEventListener("pointerenter", () => energyDot.classList.add("hover"));
     energyDot.addEventListener("pointerleave", () => energyDot.classList.remove("hover"));
-    energyDot.addEventListener("click", (e) => handlers.onShowMenu?.(e, { nodeId: meta.id, kind: "energy", role: "input-energy" }));
+    energyDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlers.onShowMenu?.(e, { nodeId: meta.id, kind: "energy", role: "input-energy" });
+    });
     energyDot.addEventListener("contextmenu", (e) =>
       handlers.onShowMenu?.(e, { nodeId: meta.id, kind: "energy", role: "input-energy" })
     );

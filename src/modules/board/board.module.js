@@ -888,9 +888,10 @@ function showContextMenu(e, options) {
     });
   }
 
-  document.body.appendChild(menu);
-  const x = e.clientX;
-  const y = e.clientY;
+  playfield.appendChild(menu);
+  const rect = playfield.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
   menu.style.left = `${Math.max(8, x + 10)}px`;
   menu.style.top = `${Math.max(8, y + 10)}px`;
   contextMenuEl = menu;
@@ -901,8 +902,8 @@ function showContextMenu(e, options) {
   };
   contextMenuCloser = handler;
   setTimeout(() => {
-    document.addEventListener("pointerdown", handler, { once: true });
-    document.addEventListener("wheel", handler, { once: true, passive: true });
+    document.addEventListener("pointerdown", handler, { capture: true });
+    document.addEventListener("wheel", handler, { passive: true });
   }, 0);
 }
 
@@ -911,6 +912,10 @@ function hideContextMenu() {
     contextMenuEl.parentNode.removeChild(contextMenuEl);
   }
   contextMenuEl = null;
+  if (contextMenuCloser) {
+    document.removeEventListener("pointerdown", contextMenuCloser, { capture: true });
+    document.removeEventListener("wheel", contextMenuCloser, { passive: true });
+  }
   contextMenuCloser = null;
 }
 

@@ -223,7 +223,7 @@
 
 #mod-board .io-context-menu {
   position: absolute;
-  z-index: 20;
+  z-index: 120;
   min-width: 180px;
   background: rgba(14, 17, 22, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
