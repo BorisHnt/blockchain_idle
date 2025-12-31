@@ -530,7 +530,11 @@ function renderNodes() {
           ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
         </div>
         <div class="io-column io-column-right">
-          ${hasOutputAnchor(meta) ? `<div class="io-dot ${meta.output === "energy" ? "energy" : "output"}" title="Sortie" data-io="output"></div>` : ""}
+          ${
+            hasOutputAnchor(meta)
+              ? `<div class="io-dot output ${meta.output === "energy" ? "energy" : ""}" title="Sortie" data-io="output"></div>`
+              : ""
+          }
         </div>
       </div>
       <div class="node-body">

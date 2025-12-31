@@ -200,6 +200,12 @@
   border-color: rgba(77, 212, 255, 0.5);
 }
 
+#mod-board .io-dot.output.energy {
+  background: rgba(255, 209, 102, 0.28);
+  border-color: rgba(255, 209, 102, 0.65);
+  box-shadow: 0 0 10px rgba(255, 209, 102, 0.35);
+}
+
 #mod-board .io-dot.input {
   background: rgba(255, 159, 67, 0.25);
   border-color: rgba(255, 159, 67, 0.5);
