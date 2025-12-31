@@ -763,7 +763,8 @@ function drawConnections() {
     const toMeta = getNodeMeta(conn.to);
     if (!hasOutputAnchor(fromMeta) || !hasInputAnchor(toMeta)) return;
     const start = getDotCenter(from.outputDot);
-    const end = isEnergyConnection(conn) ? getDotCenter(to.energyDot) : getDotCenter(to.inputDot);
+    const targetEnergyDot = to.energyDot || to.inputDot;
+    const end = isEnergyConnection(conn) ? getDotCenter(targetEnergyDot) : getDotCenter(to.inputDot);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const midX = (start.x + end.x) / 2;
     const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
@@ -876,7 +877,9 @@ function endLink(e) {
   if (targetDot) {
     const toCard = targetDot.closest(".node-card");
     const toId = toCard?.dataset.node;
-    const kind = targetDot.dataset.io === "energy" ? "energy" : "resource";
+    const fromMeta = getNodeMeta(linking.fromId);
+    const prefersEnergy = fromMeta?.output === "energy";
+    const kind = targetDot.dataset.io === "energy" || prefersEnergy ? "energy" : "resource";
     tryCreateConnection(linking.fromId, toId, kind);
   }
   linking = null;
