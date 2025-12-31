@@ -1,7 +1,7 @@
 const isEnergyConnection = (conn) => conn.kind === "energy";
 
 export function createCablage({ getNodeMeta, hasInputAnchor, hasOutputAnchor, hasEnergyInput, isUnlocked, flashHint }) {
-  const tryCreate = (state, fromId, toId, targetType = "resource") => {
+  const tryCreate = (state, fromId, toId, targetType = "data") => {
     if (!fromId || !toId || fromId === toId) return state;
     const fromMeta = getNodeMeta(fromId);
     const toMeta = getNodeMeta(toId);
@@ -39,7 +39,7 @@ export function createCablage({ getNodeMeta, hasInputAnchor, hasOutputAnchor, ha
       flashHint("Déjà connecté");
       return state;
     }
-    state.connections = [...state.connections, { from: fromId, to: toId, kind: isEnergy ? "energy" : "resource" }];
+    state.connections = [...state.connections, { from: fromId, to: toId, kind: isEnergy ? "energy" : "data" }];
     return state;
   };
 

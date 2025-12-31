@@ -233,7 +233,7 @@ function mergeBoardState(saved) {
     connections: Array.isArray(saved.connections)
       ? saved.connections
           .filter(Boolean)
-          .map((c) => ({ ...c, kind: c.kind || "resource" }))
+          .map((c) => ({ ...c, kind: c.kind === "resource" ? "data" : c.kind || "data" }))
       : [],
     layoutVersion: LAYOUT_VERSION,
     lastSaved: saved.lastSaved || Date.now(),
@@ -411,7 +411,7 @@ function hasEnergyConnection(id) {
   return state.connections.some((c) => c.to === id && isEnergyConnection(c));
 }
 
-function tryCreateConnection(fromId, toId, targetType = "resource") {
+function tryCreateConnection(fromId, toId, targetType = "data") {
   if (!fromId || !toId || fromId === toId) return;
   hideContextMenu();
   state = cablage.tryCreate(state, fromId, toId, targetType);
@@ -509,7 +509,7 @@ function renderNodes() {
       <div class="io-group">
         <div class="io-column io-column-left">
           ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}
-          ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="resource"></div>` : ""}
+          ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
         </div>
         <div class="flow">
           ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
@@ -785,8 +785,8 @@ function startLink(e, fromId, explicitKind) {
   hideContextMenu();
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
-  const outType = explicitKind || e.currentTarget?.dataset?.outType || meta.output || "resource";
-  linking = { fromId, kind: outType === "energy" ? "energy" : "resource" };
+  const outType = explicitKind || e.currentTarget?.dataset?.outType || meta.output || "data";
+  linking = { fromId, kind: outType === "energy" ? "energy" : "data" };
   const rect = playfield.getBoundingClientRect();
   const toPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
   wires.setPreview({ fromId, toPoint, kind: linking.kind });
@@ -810,7 +810,7 @@ function endLink(e) {
     const toId = toCard?.dataset.node;
     const fromMeta = getNodeMeta(linking.fromId);
     const prefersEnergy = fromMeta?.output === "energy" || linking.kind === "energy";
-    const kind = targetDot.dataset.io === "energy" ? "energy" : prefersEnergy ? "energy" : "resource";
+    const kind = targetDot.dataset.io === "energy" ? "energy" : prefersEnergy ? "energy" : "data";
     tryCreateConnection(linking.fromId, toId, kind);
   }
   linking = null;
