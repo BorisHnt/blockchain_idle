@@ -889,9 +889,8 @@ function showContextMenu(e, options) {
   }
 
   document.body.appendChild(menu);
-  const rect = playfield.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const x = e.clientX;
+  const y = e.clientY;
   menu.style.left = `${Math.max(8, x + 10)}px`;
   menu.style.top = `${Math.max(8, y + 10)}px`;
   contextMenuEl = menu;
