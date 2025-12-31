@@ -141,6 +141,8 @@ button.ghost {
 
 .module-slot {
   min-height: 220px;
+  flex: 1;
+  display: flex;
 }
 
 .module-card {
