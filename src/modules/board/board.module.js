@@ -761,10 +761,16 @@ function drawConnections() {
     if (!from || !to) return;
     const fromMeta = getNodeMeta(conn.from);
     const toMeta = getNodeMeta(conn.to);
-    if (!hasOutputAnchor(fromMeta) || !hasInputAnchor(toMeta)) return;
+    const isEnergy = isEnergyConnection(conn);
+    if (!hasOutputAnchor(fromMeta)) return;
+    if (isEnergy) {
+      if (!hasEnergyInput(toMeta)) return;
+    } else if (!hasInputAnchor(toMeta)) {
+      return;
+    }
     const start = getDotCenter(from.outputDot);
     const targetEnergyDot = to.energyDot || to.inputDot;
-    const end = isEnergyConnection(conn) ? getDotCenter(targetEnergyDot) : getDotCenter(to.inputDot);
+    const end = isEnergy ? getDotCenter(targetEnergyDot) : getDotCenter(to.inputDot);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const midX = (start.x + end.x) / 2;
     const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
@@ -773,7 +779,6 @@ function drawConnections() {
     path.setAttribute("stroke-width", "3");
     path.setAttribute("stroke-linecap", "round");
     const active = isUnlocked(conn.from) && getLevel(conn.from) > 0;
-    const isEnergy = isEnergyConnection(conn);
     const color = isEnergy ? "#ffd166" : "#4dd4ff";
     path.setAttribute("stroke", active ? color : "rgba(255,255,255,0.15)");
     path.setAttribute("opacity", active ? "0.9" : "0.4");
@@ -792,7 +797,9 @@ function drawConnections() {
       path.setAttribute("fill", "none");
       path.setAttribute("stroke-width", "2");
       path.setAttribute("stroke-dasharray", "6 4");
-      path.setAttribute("stroke", "rgba(77,212,255,0.8)");
+      const meta = getNodeMeta(fromId);
+      const isEnergy = meta?.output === "energy";
+      path.setAttribute("stroke", isEnergy ? "rgba(255,209,102,0.85)" : "rgba(77,212,255,0.8)");
       path.setAttribute("opacity", "0.8");
       wiresSvg.appendChild(path);
     }
@@ -856,7 +863,7 @@ function startLink(e, fromId) {
   e.stopPropagation();
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
-  linking = { fromId };
+  linking = { fromId, kind: meta.output === "energy" ? "energy" : "resource" };
   const rect = playfield.getBoundingClientRect();
   linkPreview = { fromId, toPoint: { x: e.clientX - rect.left, y: e.clientY - rect.top } };
   document.addEventListener("pointermove", onLinkMove);
@@ -878,7 +885,7 @@ function endLink(e) {
     const toCard = targetDot.closest(".node-card");
     const toId = toCard?.dataset.node;
     const fromMeta = getNodeMeta(linking.fromId);
-    const prefersEnergy = fromMeta?.output === "energy";
+    const prefersEnergy = fromMeta?.output === "energy" || linking.kind === "energy";
     const kind = targetDot.dataset.io === "energy" || prefersEnergy ? "energy" : "resource";
     tryCreateConnection(linking.fromId, toId, kind);
   }
