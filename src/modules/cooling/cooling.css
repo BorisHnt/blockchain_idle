@@ -1,0 +1,57 @@
+#mod-cooling .cooling-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#mod-cooling .cooling-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#mod-cooling .cooling-level {
+  background: rgba(77, 212, 255, 0.12);
+  border: 1px solid rgba(77, 212, 255, 0.45);
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: center;
+  min-width: 76px;
+}
+
+#mod-cooling .cooling-body .label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#mod-cooling .cooling-body .value {
+  font-family: var(--mono);
+  font-size: 20px;
+}
+
+#mod-cooling .risk-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#mod-cooling .risk-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4dd4ff, #ff5f7a);
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+#mod-cooling .cooling-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#mod-cooling .small {
+  font-size: 12px;
+}

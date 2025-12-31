@@ -1,0 +1,49 @@
+#mod-ram .ram-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#mod-ram .ram-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#mod-ram .ram-level {
+  background: rgba(125, 249, 255, 0.12);
+  border: 1px solid rgba(125, 249, 255, 0.4);
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: center;
+  min-width: 76px;
+}
+
+#mod-ram h2 {
+  margin: 2px 0 4px;
+}
+
+#mod-ram .ram-body .label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#mod-ram .ram-body .value {
+  font-family: var(--mono);
+  font-size: 20px;
+}
+
+#mod-ram .ram-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#mod-ram .ram-actions button {
+  flex: 0 0 auto;
+}
+
+#mod-ram .small {
+  font-size: 12px;
+}

@@ -4,7 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IDLE Techno Game</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="src/modules/cpu/cpu.css">
+  <link rel="stylesheet" href="src/modules/gpu/gpu.css">
+  <link rel="stylesheet" href="src/modules/ram/ram.css">
+  <link rel="stylesheet" href="src/modules/algorithms/algorithms.css">
+  <link rel="stylesheet" href="src/modules/rnd/rnd.css">
+  <link rel="stylesheet" href="src/modules/cooling/cooling.css">
 </head>
 <body>
   <div id="app">
@@ -12,7 +18,7 @@
       <div class="hud-left">
         <div class="stat money">
           <div class="label">Crédits CXT</div>
-          <div class="value" id="stat-coin">$0</div>
+          <div class="value" id="stat-coin">0</div>
           <div class="rate" id="rate-coin">+0/s</div>
         </div>
         <div class="stat hash">
@@ -24,6 +30,11 @@
           <div class="label">Compute</div>
           <div class="value" id="stat-compute">0</div>
           <div class="rate" id="rate-compute">+0/s</div>
+        </div>
+        <div class="stat energy">
+          <div class="label">Énergie</div>
+          <div class="value" id="stat-energy">0</div>
+          <div class="rate" id="rate-energy">+0/s</div>
         </div>
         <div class="stat skill">
           <div class="label">Compétences</div>
@@ -38,17 +49,24 @@
       </div>
     </header>
 
-    <main class="playfield" id="playfield">
-      <svg id="wires" class="wires" aria-hidden="true"></svg>
-      <div id="nodes" class="nodes"></div>
+    <main class="shell">
+      <div class="modules-grid" id="module-grid">
+        <section id="mod-cpu" class="module-slot" aria-label="CPU Miner"></section>
+        <section id="mod-gpu" class="module-slot" aria-label="GPU Farm"></section>
+        <section id="mod-ram" class="module-slot" aria-label="RAM Cache"></section>
+        <section id="mod-algorithms" class="module-slot" aria-label="Algorithmes"></section>
+        <section id="mod-rnd" class="module-slot" aria-label="R&D"></section>
+        <section id="mod-cooling" class="module-slot" aria-label="Refroidissement"></section>
+      </div>
+      <div id="offline-gain" class="offline-gain"></div>
     </main>
 
     <footer class="footer">
-      <div>Jeu IDLE inspiré des pipelines tech · Sauvegarde locale automatique</div>
-      <div id="offline-gain" class="offline-gain"></div>
+      <div>Jeu IDLE inspiré des pipelines tech · Architecture modulaire</div>
+      <div class="version" id="layout-version"></div>
     </footer>
   </div>
 
-  <script src="main.js"></script>
+  <script type="module" src="src/app/main.js"></script>
 </body>
 </html>

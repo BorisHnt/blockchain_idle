@@ -1,0 +1,45 @@
+#mod-rnd .rnd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#mod-rnd .rnd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#mod-rnd .rnd-level {
+  background: rgba(255, 95, 122, 0.12);
+  border: 1px solid rgba(255, 95, 122, 0.4);
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: center;
+  min-width: 76px;
+}
+
+#mod-rnd h2 {
+  margin: 2px 0 4px;
+}
+
+#mod-rnd .rnd-body .label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#mod-rnd .rnd-body .value {
+  font-family: var(--mono);
+  font-size: 20px;
+}
+
+#mod-rnd .rnd-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#mod-rnd .small {
+  font-size: 12px;
+}

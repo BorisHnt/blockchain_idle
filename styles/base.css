@@ -1,0 +1,183 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  --bg: #0e1116;
+  --panel: rgba(20, 25, 33, 0.9);
+  --panel-strong: rgba(24, 29, 38, 0.96);
+  --grid: rgba(255, 255, 255, 0.04);
+  --text: #dfe7ff;
+  --muted: #7f8ca5;
+  --accent: #4dd4ff;
+  --accent-2: #ff9f43;
+  --danger: #ff5f7a;
+  --good: #5aff9d;
+  --shadow: 0 14px 55px rgba(0, 0, 0, 0.35);
+  --mono: "JetBrains Mono", monospace;
+  --display: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 20% 20%, rgba(77, 212, 255, 0.05), transparent 40%),
+    radial-gradient(ellipse at 80% 10%, rgba(255, 159, 67, 0.08), transparent 35%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--display);
+  letter-spacing: 0.01em;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: linear-gradient(90deg, rgba(12, 16, 22, 0.75), rgba(13, 20, 28, 0.9));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.hud-left {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stat {
+  background: var(--panel);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 130px;
+  box-shadow: var(--shadow);
+}
+
+.stat .label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stat .value {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stat .rate {
+  color: var(--good);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(120deg, rgba(77, 212, 255, 0.15), rgba(77, 212, 255, 0.08));
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 20px rgba(77, 212, 255, 0.15);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.save-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.shell {
+  flex: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.module-slot {
+  min-height: 220px;
+}
+
+.module-card {
+  background: linear-gradient(180deg, rgba(18, 22, 30, 0.96), rgba(10, 13, 18, 0.9));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.module-card h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+}
+
+.module-card .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.offline-gain {
+  min-height: 18px;
+  color: var(--good);
+  font-family: var(--mono);
+  padding: 4px 8px;
+}
+
+.footer {
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.version {
+  font-family: var(--mono);
+}

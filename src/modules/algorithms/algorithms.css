@@ -1,0 +1,41 @@
+#mod-algorithms .algo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#mod-algorithms .algo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#mod-algorithms .algo-level {
+  background: rgba(93, 255, 157, 0.12);
+  border: 1px solid rgba(93, 255, 157, 0.4);
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: center;
+  min-width: 76px;
+}
+
+#mod-algorithms .algo-body .label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#mod-algorithms .algo-body .value {
+  font-family: var(--mono);
+  font-size: 22px;
+}
+
+#mod-algorithms .algo-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#mod-algorithms .small {
+  font-size: 12px;
+}

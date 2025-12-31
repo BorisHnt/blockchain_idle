@@ -1,18 +1,33 @@
-const STORAGE_KEY = "idle-techno-save-v2";
+const STORAGE_KEY = "idle-techno-save-v4";
+const LAYOUT_VERSION = 3;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 
 const NODES = [
   {
-    id: "power",
-    name: "Power Grid",
-    caption: "Génère du compute stable",
+    id: "energy",
+    name: "Energy Source",
+    caption: "Alimentation du réseau",
+    type: "source",
+    output: "energy",
+    baseRate: 900,
+    baseCost: 0,
+    x: 80,
+    y: 120,
+    startLevel: 1,
+    startUnlocked: true,
+  },
+  {
+    id: "validator",
+    name: "Validator Grid",
+    caption: "Transforme l'énergie en compute",
     type: "source",
     output: "compute",
+    energyUse: 240,
     baseRate: 4.2,
     baseCost: 60,
-    x: 120,
-    y: 340,
+    x: 80,
+    y: 360,
     startLevel: 1,
     startUnlocked: true,
   },
@@ -22,10 +37,11 @@ const NODES = [
     caption: "Compute → Hash",
     input: "compute",
     output: "hash",
+    energyUse: 180,
     baseRate: 2.3,
     baseCost: 120,
-    x: 320,
-    y: 240,
+    x: 420,
+    y: 160,
     startLevel: 1,
     startUnlocked: true,
   },
@@ -35,12 +51,17 @@ const NODES = [
     caption: "Hash → Crédits",
     input: "hash",
     output: "coin",
+    energyUse: 260,
     baseRate: 1.1,
     baseCost: 140,
-    x: 520,
-    y: 240,
+    x: 760,
+    y: 160,
     startLevel: 1,
     startUnlocked: true,
+    coresMax: 8,
+    baseCores: 1,
+    coreCost: 120,
+    coreGrowth: 1.4,
   },
   {
     id: "ram",
@@ -49,11 +70,12 @@ const NODES = [
     input: "compute",
     output: "hash",
     efficiency: 1.25,
+    energyUse: 90,
     baseRate: 1.4,
     baseCost: 200,
     unlock: { coin: 220 },
-    x: 320,
-    y: 420,
+    x: 420,
+    y: 400,
     startLevel: 0,
   },
   {
@@ -63,11 +85,12 @@ const NODES = [
     input: "hash",
     output: "coin",
     efficiency: 1.35,
+    energyUse: 120,
     baseRate: 0.9,
     baseCost: 260,
     unlock: { coin: 320, skill: 2 },
-    x: 520,
-    y: 420,
+    x: 760,
+    y: 400,
   },
   {
     id: "lab",
@@ -75,11 +98,12 @@ const NODES = [
     caption: "Crédits → Compétences",
     input: "coin",
     output: "skill",
+    energyUse: 80,
     baseRate: 0.35,
     baseCost: 180,
     unlock: { coin: 180 },
-    x: 720,
-    y: 260,
+    x: 1100,
+    y: 160,
   },
   {
     id: "firmware",
@@ -87,40 +111,46 @@ const NODES = [
     caption: "Compétences → Compute",
     input: "skill",
     output: "compute",
+    energyUse: 110,
     baseRate: 0.8,
     baseCost: 240,
     unlock: { coin: 400, skill: 1 },
-    x: 720,
-    y: 430,
+    x: 1100,
+    y: 400,
+  },
+  {
+    id: "collector",
+    name: "Collector",
+    caption: "Agrège les gains",
+    input: "coin",
+    output: "coin",
+    baseRate: 1.05,
+    efficiency: 1.25,
+    baseCost: 260,
+    unlock: { coin: 260 },
+    hideOutputAnchor: true,
+    x: 1460,
+    y: 280,
   },
 ];
 
-const CONNECTIONS = [
-  { from: "power", to: "gpu" },
-  { from: "power", to: "ram" },
-  { from: "gpu", to: "cpu" },
-  { from: "ram", to: "cpu" },
-  { from: "gpu", to: "optimizer" },
-  { from: "optimizer", to: "lab" },
-  { from: "cpu", to: "lab" },
-  { from: "lab", to: "firmware" },
-  { from: "firmware", to: "gpu" },
-];
-
 const DEFAULT_STATE = {
-  resources: { coin: 200, hash: 0, compute: 0, skill: 0 },
+  resources: { coin: 200, hash: 0, compute: 0, skill: 0, energy: 0 },
   nodes: buildDefaultNodes(),
   layout: buildDefaultLayout(),
+  connections: [],
+  layoutVersion: LAYOUT_VERSION,
   lastSaved: Date.now(),
 };
 
 const state = loadState();
 const bindings = {};
-const resourceRates = { coin: 0, hash: 0, compute: 0, skill: 0 };
+const resourceRates = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
 const playfield = document.getElementById("playfield");
 const nodesContainer = document.getElementById("nodes");
 const wiresSvg = document.getElementById("wires");
 const offlineGainEl = document.getElementById("offline-gain");
+let linkPreview = null;
 
 renderNodes();
 drawConnections();
@@ -162,7 +192,11 @@ document.getElementById("reset-btn").addEventListener("click", () => {
 function buildDefaultNodes() {
   return NODES.reduce((acc, meta) => {
     const level = meta.startLevel || 0;
-    acc[meta.id] = { level, unlocked: meta.startUnlocked || level > 0 };
+    acc[meta.id] = {
+      level,
+      unlocked: meta.startUnlocked || level > 0,
+      cores: meta.coresMax ? meta.baseCores || 0 : undefined,
+    };
     return acc;
   }, {});
 }
@@ -179,6 +213,22 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function hasInputAnchor(meta) {
+  return !!meta.input;
+}
+
+function hasOutputAnchor(meta) {
+  return !!meta.output && !meta.hideOutputAnchor;
+}
+
+function hasEnergyInput(meta) {
+  return !!meta.energyUse && meta.id !== "energy";
+}
+
+function isEnergyConnection(conn) {
+  return conn.kind === "energy";
+}
+
 function loadState() {
   const baseNodes = buildDefaultNodes();
   const baseLayout = buildDefaultLayout();
@@ -186,6 +236,8 @@ function loadState() {
     resources: { ...DEFAULT_STATE.resources },
     nodes: baseNodes,
     layout: baseLayout,
+    connections: [],
+    layoutVersion: LAYOUT_VERSION,
     lastSaved: Date.now(),
   };
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -195,7 +247,16 @@ function loadState() {
     const merged = {
       resources: { ...DEFAULT_STATE.resources, ...parsed.resources },
       nodes: { ...baseNodes, ...parsed.nodes },
-      layout: { ...baseLayout, ...(parsed.layout || {}) },
+      layout:
+        parsed.layoutVersion === LAYOUT_VERSION
+          ? { ...baseLayout, ...(parsed.layout || {}) }
+          : { ...baseLayout },
+      connections: Array.isArray(parsed.connections)
+        ? parsed.connections
+            .filter(Boolean)
+            .map((c) => ({ ...c, kind: c.kind || "resource" }))
+        : [],
+      layoutVersion: LAYOUT_VERSION,
       lastSaved: parsed.lastSaved || Date.now(),
     };
     NODES.forEach((meta) => {
@@ -212,7 +273,23 @@ function loadState() {
           typeof nodeState.unlocked === "boolean"
             ? nodeState.unlocked
             : nodeState.level > 0 || baseNodes[meta.id].unlocked,
+        cores:
+          meta.coresMax && typeof nodeState.cores === "number"
+            ? nodeState.cores
+            : meta.coresMax
+            ? meta.baseCores || 0
+            : undefined,
       };
+    });
+    merged.connections = merged.connections.filter((c) => {
+      const from = getNodeMeta(c.from);
+      const to = getNodeMeta(c.to);
+      return (
+        from &&
+        to &&
+        hasOutputAnchor(from) &&
+        (isEnergyConnection(c) ? hasEnergyInput(to) : hasInputAnchor(to))
+      );
     });
     applyOfflineProgress(merged);
     return merged;
@@ -224,6 +301,7 @@ function loadState() {
 
 function saveState() {
   state.lastSaved = Date.now();
+  state.layoutVersion = LAYOUT_VERSION;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -261,9 +339,76 @@ function getUpgradeCost(id) {
   return Math.round(meta.baseCost * Math.pow(1.22, level));
 }
 
+function getCores(id) {
+  return state.nodes[id]?.cores || 0;
+}
+
+function getCoreCost(id) {
+  const meta = getNodeMeta(id);
+  if (!meta?.coresMax) return Infinity;
+  const cores = getCores(id);
+  const base = meta.coreCost || meta.baseCost || 100;
+  const growth = meta.coreGrowth || 1.35;
+  return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
+}
+
 function getRate(meta, level) {
   const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
+}
+
+function hasInputConnection(id) {
+  return state.connections.some((c) => c.to === id && !isEnergyConnection(c));
+}
+
+function hasEnergyConnection(id) {
+  return state.connections.some((c) => c.to === id && isEnergyConnection(c));
+}
+
+function tryCreateConnection(fromId, toId, targetType = "resource") {
+  if (!fromId || !toId || fromId === toId) return;
+  const fromMeta = getNodeMeta(fromId);
+  const toMeta = getNodeMeta(toId);
+  if (!fromMeta || !toMeta) return;
+  const isEnergy = targetType === "energy";
+  if (!hasOutputAnchor(fromMeta)) {
+    flashHint("Connexion impossible");
+    return;
+  }
+  if (!isUnlocked(fromId)) {
+    flashHint("Débloque d'abord");
+    return;
+  }
+  if (!isUnlocked(toId)) {
+    flashHint("Débloque d'abord");
+    return;
+  }
+  if (isEnergy) {
+    if (!hasEnergyInput(toMeta)) {
+      flashHint("Pas d'entrée énergie");
+      return;
+    }
+    if (fromMeta.output !== "energy") {
+      flashHint("Sortie non énergie");
+      return;
+    }
+  } else {
+    if (!hasInputAnchor(toMeta)) {
+      flashHint("Ce module n'a pas d'entrée");
+      return;
+    }
+    if (fromMeta.output !== toMeta.input) {
+      flashHint("Ressources incompatibles");
+      return;
+    }
+  }
+  const exists = state.connections.some((c) => c.from === fromId && c.to === toId && c.kind === targetType);
+  if (exists) {
+    flashHint("Déjà connecté");
+    return;
+  }
+  state.connections.push({ from: fromId, to: toId, kind: isEnergy ? "energy" : "resource" });
+  drawConnections();
 }
 
 function canUnlock(meta) {
@@ -311,6 +456,25 @@ function handleUpgrade(id) {
   drawConnections();
 }
 
+function addCore(id) {
+  const meta = getNodeMeta(id);
+  if (!meta?.coresMax) return;
+  const cores = getCores(id);
+  if (cores >= meta.coresMax) {
+    flashHint("Cores max");
+    return;
+  }
+  const cost = getCoreCost(id);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes[id] = { ...state.nodes[id], cores: cores + 1 };
+  updateNodeCard(id);
+  drawConnections();
+}
+
 function renderNodes() {
   nodesContainer.innerHTML = "";
   NODES.forEach((meta) => {
@@ -332,11 +496,29 @@ function renderNodes() {
       <div class="node-subline">${meta.caption}</div>
       <div class="flow">
         ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
-        <span class="pill output">Out: ${label(meta.output)}</span>
+        ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
+        ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
       </div>
+      ${
+        hasInputAnchor(meta) || hasOutputAnchor(meta)
+          ? `<div class="io-row">
+              ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : `<div></div>`}
+              ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="resource"></div>` : `<div></div>`}
+              ${hasOutputAnchor(meta) ? `<div class="io-dot ${meta.output === "energy" ? "energy" : "output"}" title="Sortie" data-io="output"></div>` : `<div></div>`}
+            </div>`
+          : ""
+      }
       <div class="node-body">
         <div class="node-row"><span>Production</span><span class="node-rate" data-rate>0/s</span></div>
         <div class="node-row"><span>Coût</span><span data-cost>0</span></div>
+        ${
+          meta.coresMax
+            ? `<div class="cores">
+                <div class="core-list" data-cores></div>
+                <button data-core>Add core</button>
+              </div>`
+            : ""
+        }
         <div class="actions">
           <button data-unlock class="ghost">Débloquer</button>
           <button data-upgrade>Améliorer</button>
@@ -347,13 +529,26 @@ function renderNodes() {
 
     const upgradeBtn = card.querySelector("[data-upgrade]");
     const unlockBtn = card.querySelector("[data-unlock]");
+    const coreBtn = card.querySelector("[data-core]");
     upgradeBtn.addEventListener("click", () => handleUpgrade(meta.id));
     unlockBtn.addEventListener("click", () => unlockNode(meta.id));
+    if (coreBtn) {
+      coreBtn.addEventListener("click", () => addCore(meta.id));
+    }
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
-      if (!e.target.closest(".drag-handle") && e.currentTarget !== card) return;
+      if (!e.target.closest(".drag-handle")) return;
       startDrag(e, meta.id);
     });
+    const outputDot = card.querySelector(".io-dot.output");
+    const inputDot = card.querySelector(".io-dot.input");
+    if (outputDot) {
+      outputDot.addEventListener("pointerdown", (e) => startLink(e, meta.id));
+    }
+    if (inputDot) {
+      inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
+      inputDot.addEventListener("pointerleave", () => inputDot.classList.remove("hover"));
+    }
 
     bindings[meta.id] = {
       card,
@@ -363,6 +558,10 @@ function renderNodes() {
       statusEl: card.querySelector("[data-status]"),
       upgradeBtn,
       unlockBtn,
+      coreBtn,
+      coresContainer: card.querySelector("[data-cores]"),
+      inputDot,
+      outputDot,
     };
 
     nodesContainer.appendChild(card);
@@ -375,10 +574,12 @@ function updateHud() {
   document.getElementById("stat-hash").textContent = formatNumber(state.resources.hash);
   document.getElementById("stat-compute").textContent = formatNumber(state.resources.compute);
   document.getElementById("stat-skill").textContent = formatNumber(state.resources.skill);
+  document.getElementById("stat-energy").textContent = formatNumber(state.resources.energy);
   document.getElementById("rate-coin").textContent = `${formatRate(resourceRates.coin)}/s`;
   document.getElementById("rate-hash").textContent = `${formatRate(resourceRates.hash)}/s`;
   document.getElementById("rate-compute").textContent = `${formatRate(resourceRates.compute)}/s`;
   document.getElementById("rate-skill").textContent = `${formatRate(resourceRates.skill)}/s`;
+  document.getElementById("rate-energy").textContent = `${formatRate(resourceRates.energy)}/s`;
 }
 
 function getNodePosition(id) {
@@ -390,12 +591,21 @@ function setNodePosition(id, pos) {
   state.layout[id] = pos;
 }
 
+function getDotCenter(el) {
+  if (!el) return { x: 0, y: 0 };
+  const rect = el.getBoundingClientRect();
+  const parent = playfield.getBoundingClientRect();
+  return { x: rect.left - parent.left + rect.width / 2, y: rect.top - parent.top + rect.height / 2 };
+}
+
 function updateNodeCard(id) {
   const meta = getNodeMeta(id);
   const ui = bindings[id];
   if (!ui) return;
   const level = getLevel(id);
   const unlocked = isUnlocked(id);
+  const connected = !meta.input || hasInputConnection(id);
+  const powered = !hasEnergyInput(meta) || hasEnergyConnection(id);
   ui.levelEl.textContent = level;
   ui.card.classList.toggle("locked", !unlocked);
   ui.unlockBtn.style.display = unlocked ? "none" : "inline-flex";
@@ -415,10 +625,35 @@ function updateNodeCard(id) {
   const rate = level > 0 ? formatRate(getRate(meta, level) * (meta.efficiency || 1)) : "0";
   ui.rateEl.textContent = `${rate}/s`;
 
+  if (meta.coresMax && ui.coresContainer) {
+    ui.coresContainer.innerHTML = "";
+    const cores = getCores(id);
+    for (let i = 0; i < meta.coresMax; i++) {
+      const dot = document.createElement("div");
+      dot.className = "core";
+      if (i < cores) dot.classList.add("active");
+      ui.coresContainer.appendChild(dot);
+    }
+    if (ui.coreBtn) {
+      ui.coreBtn.style.display = unlocked ? "inline-flex" : "none";
+      ui.coreBtn.disabled = !unlocked || cores >= meta.coresMax || state.resources.coin < getCoreCost(id);
+      ui.coreBtn.textContent = cores >= meta.coresMax ? "Max cores" : `Add core (${formatNumber(getCoreCost(id))} CXT)`;
+    }
+  }
+
   const hasInput = meta.input ? state.resources[meta.input] > 0 || level === 0 : true;
-  ui.statusEl.textContent = hasInput ? "Actif" : "En attente d'entrée";
-  ui.statusEl.style.color = hasInput ? "var(--good)" : "var(--danger)";
-  ui.card.classList.toggle("idle", !hasInput);
+  const canRun = (!meta.input || connected) && powered && hasInput;
+  if (!powered && hasEnergyInput(meta)) {
+    ui.statusEl.textContent = "Pas d'énergie";
+    ui.statusEl.style.color = "var(--muted)";
+  } else if (!connected && meta.input) {
+    ui.statusEl.textContent = "Non connecté";
+    ui.statusEl.style.color = "var(--muted)";
+  } else {
+    ui.statusEl.textContent = canRun ? "Actif" : "En attente d'entrée";
+    ui.statusEl.style.color = canRun ? "var(--good)" : "var(--danger)";
+  }
+  ui.card.classList.toggle("idle", !canRun);
 }
 
 function runProduction(delta) {
@@ -428,13 +663,30 @@ function runProduction(delta) {
 }
 
 function simulateProduction(delta, targetState) {
-  const net = { coin: 0, hash: 0, compute: 0, skill: 0 };
+  const net = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
   NODES.forEach((meta) => {
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
     if (!nodeState.unlocked || level <= 0) return;
-    const rate = getRate(meta, level) * (meta.efficiency || 1);
+    if (meta.input && !hasInputConnection(meta.id)) {
+      return;
+    }
+    if (hasEnergyInput(meta) && !hasEnergyConnection(meta.id)) {
+      return;
+    }
+    const cores = meta.coresMax ? nodeState.cores || meta.baseCores || 0 : 1;
+    const rate = getRate(meta, level) * (meta.efficiency || 1) * cores;
     let work = rate * delta;
+    if (meta.energyUse) {
+      const needed = meta.energyUse * delta;
+      const available = targetState.resources.energy || 0;
+      const factor = Math.min(1, needed > 0 ? available / needed : 1);
+      if (factor <= 0) return;
+      work *= factor;
+      const consumeEnergy = needed * factor;
+      targetState.resources.energy = Math.max(0, available - consumeEnergy);
+      net.energy -= consumeEnergy;
+    }
     if (meta.input) {
       const ratio = meta.inputRatio || 1;
       const available = (targetState.resources[meta.input] || 0) / ratio;
@@ -468,33 +720,51 @@ function drawConnections() {
   wiresSvg.setAttribute("height", rect.height);
   wiresSvg.innerHTML = "";
 
-  CONNECTIONS.forEach((conn) => {
+  state.connections.forEach((conn) => {
     const from = bindings[conn.from];
     const to = bindings[conn.to];
     if (!from || !to) return;
-    const fromRect = from.card.getBoundingClientRect();
-    const toRect = to.card.getBoundingClientRect();
-    const offsetX = rect.left;
-    const offsetY = rect.top;
-    const startX = fromRect.right - offsetX;
-    const startY = fromRect.top + fromRect.height / 2 - offsetY;
-    const endX = toRect.left - offsetX;
-    const endY = toRect.top + toRect.height / 2 - offsetY;
-    const midX = (startX + endX) / 2;
+    const fromMeta = getNodeMeta(conn.from);
+    const toMeta = getNodeMeta(conn.to);
+    if (!hasOutputAnchor(fromMeta) || !hasInputAnchor(toMeta)) return;
+    const start = getDotCenter(from.outputDot);
+    const end = getDotCenter(to.inputDot);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
+    const midX = (start.x + end.x) / 2;
+    const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
     path.setAttribute("stroke-width", "3");
     path.setAttribute("stroke-linecap", "round");
     const active = isUnlocked(conn.from) && getLevel(conn.from) > 0;
-    path.setAttribute("stroke", active ? "#4dd4ff" : "rgba(255,255,255,0.15)");
+    const isEnergy = isEnergyConnection(conn);
+    const color = isEnergy ? "#ffd166" : "#4dd4ff";
+    path.setAttribute("stroke", active ? color : "rgba(255,255,255,0.15)");
     path.setAttribute("opacity", active ? "0.9" : "0.4");
     wiresSvg.appendChild(path);
   });
+
+  if (linkPreview) {
+    const { fromId, toPoint } = linkPreview;
+    const from = bindings[fromId];
+    if (from) {
+      const start = getDotCenter(from.outputDot);
+      const midX = (start.x + toPoint.x) / 2;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${toPoint.y}, ${toPoint.x} ${toPoint.y}`;
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke-dasharray", "6 4");
+      path.setAttribute("stroke", "rgba(77,212,255,0.8)");
+      path.setAttribute("opacity", "0.8");
+      wiresSvg.appendChild(path);
+    }
+  }
 }
 
 let drag = null;
+let linking = null;
 
 function startDrag(e, id) {
   const ui = bindings[id];
@@ -549,6 +819,40 @@ function endDrag() {
   drag = null;
 }
 
+function startLink(e, fromId) {
+  e.stopPropagation();
+  const meta = getNodeMeta(fromId);
+  if (!meta || !hasOutputAnchor(meta)) return;
+  linking = { fromId };
+  linkPreview = { fromId, toPoint: { x: e.clientX - playfield.getBoundingClientRect().left, y: e.clientY - playfield.getBoundingClientRect().top } };
+  document.addEventListener("pointermove", onLinkMove);
+  document.addEventListener("pointerup", endLink);
+  drawConnections();
+}
+
+function onLinkMove(e) {
+  if (!linking) return;
+  const rect = playfield.getBoundingClientRect();
+  linkPreview = { fromId: linking.fromId, toPoint: { x: e.clientX - rect.left, y: e.clientY - rect.top } };
+  drawConnections();
+}
+
+function endLink(e) {
+  if (!linking) return;
+  const targetDot = e.target.closest?.(".io-dot");
+  if (targetDot) {
+    const toCard = targetDot.closest(".node-card");
+    const toId = toCard?.dataset.node;
+    const kind = targetDot.dataset.io === "energy" ? "energy" : "resource";
+    tryCreateConnection(linking.fromId, toId, kind);
+  }
+  linking = null;
+  linkPreview = null;
+  document.removeEventListener("pointermove", onLinkMove);
+  document.removeEventListener("pointerup", endLink);
+  drawConnections();
+}
+
 function label(resource) {
   switch (resource) {
     case "coin":
@@ -559,6 +863,8 @@ function label(resource) {
       return "Compute";
     case "skill":
       return "XP";
+    case "energy":
+      return "W";
     default:
       return resource;
   }
