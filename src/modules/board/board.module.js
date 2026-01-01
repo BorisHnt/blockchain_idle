@@ -601,7 +601,13 @@ function renderNodes() {
               : `<span class="pill source">Source</span>`
           }
           ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
-          ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
+          ${
+            hasOutputAnchor(meta)
+              ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${
+                  meta.output === "energy" ? "Energy" : label(meta.output)
+                }</span>`
+              : `<span class="pill output muted">Out: -</span>`
+          }
         </div>
         <div class="io-column io-column-right">
           ${
