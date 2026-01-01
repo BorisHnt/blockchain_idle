@@ -179,11 +179,21 @@
   color: var(--muted);
 }
 
-#mod-board .power-grid-wrapper {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 12px;
+#mod-board .power-stacks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#mod-board .power-stack {
+  display: flex;
+  gap: 8px;
   align-items: center;
+}
+
+#mod-board .power-stack.locked {
+  opacity: 0.4;
+  filter: saturate(0.5);
 }
 
 #mod-board .power-grid {
@@ -213,13 +223,10 @@
   animation: power-full-glow 2s ease-in-out infinite;
 }
 
-#mod-board .power-grid + button[data-add-cell] {
-  justify-self: end;
-}
-
 #mod-board .power-section button {
   width: 100%;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 
 #mod-board .power-section button.power-full {

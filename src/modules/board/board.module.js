@@ -613,10 +613,8 @@ function renderNodes() {
           meta.id === "energy"
             ? `<div class="power-section">
                 <div class="power-header" data-power-block-label>Bloc 1 (0/8) · +50 W/cell</div>
-                <div class="power-grid-wrapper">
-                  <div class="power-grid" data-power-grid></div>
-                  <button data-add-cell class="ghost">Add Power Cell</button>
-                </div>
+                <div class="power-stacks" data-power-stacks></div>
+                <button data-add-cell class="ghost">Add Power Cell</button>
                 <button data-add-block class="ghost">Add Power Cell Block</button>
                 <div class="power-mult" data-power-mult style="display:none;">
                   <div class="node-row"><span>Multiplicateur</span><span data-mult-level>1x</span></div>
@@ -666,7 +664,7 @@ function renderNodes() {
       outputDot,
       energyLogo: card.querySelector("[data-energy-logo]"),
       energyBar: card.querySelector("[data-energy-bar]"),
-      powerGrid: card.querySelector("[data-power-grid]"),
+      powerStacks: card.querySelector("[data-power-stacks]"),
       addCellBtn: card.querySelector("[data-add-cell]"),
       addBlockBtn: card.querySelector("[data-add-block]"),
       blockLabel: card.querySelector("[data-power-block-label]"),
@@ -1080,30 +1078,42 @@ function upgradePowerMultiplier() {
 }
 
 function updatePowerCellsUI(ui) {
-  if (!ui.powerGrid) return;
   const pcState = getPowerCellsState();
   const currentBlockIdx = pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
   const activeIdx = currentBlockIdx === -1 ? pcState.blocks.length - 1 : currentBlockIdx;
   const block = pcState.blocks[activeIdx];
   const def = POWER_CELL_BLOCKS[activeIdx];
 
-  ui.powerGrid.innerHTML = "";
-  for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
-    const cell = document.createElement("div");
-    cell.className = "power-cell";
-    if (i < block.cells) cell.classList.add("filled");
-    if (block.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
-    ui.powerGrid.appendChild(cell);
+  if (ui.powerStacks) {
+    ui.powerStacks.innerHTML = "";
+    pcState.blocks.forEach((b, idx) => {
+      const stack = document.createElement("div");
+      stack.className = "power-stack";
+      if (!b.unlocked) stack.classList.add("locked");
+      if (idx === activeIdx) stack.classList.add("active");
+      if (b.cells === POWER_CELLS_PER_BLOCK) stack.classList.add("full");
+      const grid = document.createElement("div");
+      grid.className = "power-grid";
+      for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
+        const cell = document.createElement("div");
+        cell.className = "power-cell";
+        if (i < b.cells) cell.classList.add("filled");
+        if (b.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
+        grid.appendChild(cell);
+      }
+      stack.appendChild(grid);
+      ui.powerStacks.appendChild(stack);
+    });
   }
   const nextCell = getNextPowerCellCost();
   if (ui.addCellBtn) {
     if (nextCell) {
       ui.addCellBtn.disabled = state.resources.coin < nextCell.cost;
-      ui.addCellBtn.textContent = `Add Power Cell (${formatNumber(nextCell.cost)} CXT)`;
+      ui.addCellBtn.innerHTML = `Add Power Cell<br>(${formatNumber(nextCell.cost)} CXT)`;
       ui.addCellBtn.classList.toggle("power-full", false);
     } else {
       ui.addCellBtn.disabled = true;
-      ui.addCellBtn.textContent = "Block complet";
+      ui.addCellBtn.innerHTML = `⚡ Super Cell`;
       ui.addCellBtn.classList.toggle("power-full", true);
     }
   }
