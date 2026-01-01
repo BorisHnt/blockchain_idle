@@ -306,8 +306,7 @@
 #mod-board .io-group {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  column-gap: 5px;
-  row-gap: 12px;
+  gap: 12px;
   align-items: center;
   margin: 12px 0;
   width: 100%;
@@ -327,11 +326,10 @@
 
 #mod-board .io-column-right {
   justify-self: end;
-  gap: 8px;
 }
 
-#mod-board .io-column-right .pill {
-  margin-left: 5px;
+#mod-board .flow > .pill:last-child {
+  margin-right: -5px;
 }
 
 #mod-board .io-row {
