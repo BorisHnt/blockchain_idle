@@ -312,6 +312,10 @@
   width: 100%;
 }
 
+#mod-board .io-group.energy-io {
+  column-gap: 6px;
+}
+
 #mod-board .io-column {
   display: flex;
   flex-direction: column;
@@ -328,8 +332,9 @@
   justify-self: end;
 }
 
-#mod-board .flow > .pill:last-child {
-  margin-right: -5px;
+#mod-board .flow.energy-flow {
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 #mod-board .io-row {

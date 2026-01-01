@@ -587,12 +587,12 @@ function renderNodes() {
             </div>`
           : ""
       }
-      <div class="io-group">
+      <div class="io-group ${meta.id === "energy" ? "energy-io" : ""}">
         <div class="io-column io-column-left">
           ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}
           ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
         </div>
-        <div class="flow">
+        <div class="${meta.id === "energy" ? "flow energy-flow" : "flow"}">
           ${
             meta.input
               ? `<span class="pill input">In: ${label(meta.input)}</span>`
