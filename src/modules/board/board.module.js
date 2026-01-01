@@ -642,12 +642,6 @@ function renderNodes() {
     if (coreBtn) {
       coreBtn.addEventListener("click", () => addCore(meta.id));
     }
-    if (meta.id === "energy") {
-      const { addCellBtn, addBlockBtn, multBtn } = bindings[meta.id];
-      addCellBtn?.addEventListener("click", () => addPowerCell());
-      addBlockBtn?.addEventListener("click", () => unlockNextPowerBlock());
-      multBtn?.addEventListener("click", () => upgradePowerMultiplier());
-    }
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
       if (!e.target.closest(".drag-handle")) return;
@@ -681,6 +675,13 @@ function renderNodes() {
       multCost: card.querySelector("[data-mult-cost]"),
       multLevel: card.querySelector("[data-mult-level]"),
     };
+
+    if (meta.id === "energy") {
+      const { addCellBtn, addBlockBtn, multBtn } = bindings[meta.id];
+      addCellBtn?.addEventListener("click", () => addPowerCell());
+      addBlockBtn?.addEventListener("click", () => unlockNextPowerBlock());
+      multBtn?.addEventListener("click", () => upgradePowerMultiplier());
+    }
 
     nodesContainer.appendChild(card);
     updateNodeCard(meta.id);
