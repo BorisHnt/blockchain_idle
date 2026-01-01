@@ -200,14 +200,14 @@
 #mod-board .power-grid {
   display: grid;
   grid-template-columns: repeat(4, 18px);
-  grid-template-rows: repeat(2, 12px);
-  gap: 6px 8px;
+  grid-template-rows: repeat(2, 18px);
+  gap: 8px 10px;
   width: max-content;
 }
 
 #mod-board .power-cell {
   width: 18px;
-  height: 12px;
+  height: 18px;
   border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
