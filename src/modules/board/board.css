@@ -326,6 +326,11 @@
 
 #mod-board .io-column-right {
   justify-self: end;
+  gap: 8px;
+}
+
+#mod-board .io-column-right .pill {
+  margin-left: 5px;
 }
 
 #mod-board .io-row {
