@@ -2,6 +2,16 @@ import { clamp, formatNumber, formatRate, formatSeconds } from "../../app/utils.
 import { createWires } from "./wires.js";
 import { createCablage } from "./cablage.js";
 import { bindIoDots, createIoContextMenu } from "./interactions-io.js";
+import {
+  POWER_CELLS_PER_BLOCK,
+  POWER_CELL_BLOCKS,
+  getEnergyUpgradeCost,
+  getEnergyLevelScale,
+  getGenericUpgradeCost,
+  getPowerCellCost,
+  getUnlockNextBlockCost as computeUnlockBlockCost,
+  getPowerMultiplierCost,
+} from "./board.balance.js";
 
 export const id = "board";
 export const name = "Playfield";
@@ -10,14 +20,6 @@ const LAYOUT_VERSION = 3;
 const BOARD_STATE_VERSION = 3;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
-const POWER_CELLS_PER_BLOCK = 8;
-const POWER_CELL_BLOCKS = [
-  { power: 50, cost: (i) => 50 * i - 5 }, // i starts at 1
-  { power: 100, cost: (i) => 100 * (2 * i) - 10 },
-  { power: 200, cost: (i) => 200 * (4 * i) - 20 },
-  { power: 400, cost: (i) => 400 * (8 * i) - 40 },
-];
-const POWER_MULT_BASE_COST = 400 * (8 * 9); // 28800
 
 const NODES = [
   {
@@ -435,10 +437,9 @@ function getUpgradeCost(id) {
   const meta = getNodeMeta(id);
   const level = getLevel(id);
   if (meta.id === "energy") {
-    const nextLevel = level + 1;
-    return Math.round(100 * Math.exp(2 * Math.pow(Math.max(1, nextLevel) - 1, 0.5)));
+    return getEnergyUpgradeCost(level);
   }
-  return Math.round(meta.baseCost * Math.pow(1.22, level));
+  return getGenericUpgradeCost(meta.baseCost, level);
 }
 
 function getCores(id) {
@@ -1003,7 +1004,7 @@ function getPowerCellsState() {
 
 function getEnergyOutputPerSec(level) {
   const base = NODES.find((n) => n.id === "energy")?.baseRate || 0;
-  const scaledBase = base * Math.pow(1.25, Math.max(0, level - 1));
+  const scaledBase = base * getEnergyLevelScale(level);
   const pcState = getPowerCellsState();
   const cellsPower = POWER_CELL_BLOCKS.reduce((sum, def, idx) => sum + def.power * (pcState.blocks[idx]?.cells || 0), 0);
   const mult = (pcState.multiplier || 0) + 1;
@@ -1014,24 +1015,22 @@ function getNextPowerCellCost() {
   const pcState = getPowerCellsState();
   const currentIdx = pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
   if (currentIdx === -1) return null;
-  const blockDef = POWER_CELL_BLOCKS[currentIdx];
   const nextCellIndex = pcState.blocks[currentIdx].cells + 1;
-  return { cost: Math.max(0, Math.round(blockDef.cost(nextCellIndex))), block: currentIdx };
+  return { cost: getPowerCellCost(currentIdx, nextCellIndex), block: currentIdx };
 }
 
 function getUnlockNextBlockCost() {
   const pcState = getPowerCellsState();
   const nextBlockIdx = pcState.blocks.findIndex((b, idx) => !b.unlocked && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK);
   if (nextBlockIdx <= 0) return null;
-  const prevDef = POWER_CELL_BLOCKS[nextBlockIdx - 1];
-  return { cost: Math.max(0, Math.round(prevDef.cost(POWER_CELLS_PER_BLOCK + 1))), block: nextBlockIdx };
+  return { cost: computeUnlockBlockCost(nextBlockIdx - 1), block: nextBlockIdx };
 }
 
 function getMultiplierCost() {
   const pcState = getPowerCellsState();
   if (!pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK)) return null;
   const level = pcState.multiplier || 0;
-  const cost = POWER_MULT_BASE_COST * Math.pow(2, level);
+  const cost = getPowerMultiplierCost(level);
   return { cost: Math.round(cost), level };
 }
 
