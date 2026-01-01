@@ -240,6 +240,8 @@
   justify-content: center;
   background: linear-gradient(120deg, rgba(77, 212, 255, 0.15), rgba(77, 212, 255, 0.08));
   border-color: rgba(255, 255, 255, 0.12);
+  transform: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 #mod-board .power-row-btn.ghost {
@@ -248,6 +250,7 @@
 }
 
 #mod-board .power-row-btn:not(.ghost):not(.power-full):not(:disabled):hover {
+  transform: none;
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 10px 20px rgba(77, 212, 255, 0.15);
 }
