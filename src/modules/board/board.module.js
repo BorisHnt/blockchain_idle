@@ -668,15 +668,16 @@ function updateNodeCard(id) {
 
   if (!unlocked) {
     ui.costEl.textContent = formatUnlockCost(meta.unlock);
-    ui.rateEl.textContent = "0/s";
+    ui.rateEl.textContent = meta.id === "energy" ? "0 W" : "0/s";
     ui.statusEl.textContent = "Verrouillé";
     ui.statusEl.style.color = "var(--muted)";
     return;
   }
 
   ui.costEl.textContent = `${formatNumber(getUpgradeCost(id))} CXT`;
-  const rate = level > 0 ? formatRate(getRate(meta, level) * (meta.efficiency || 1)) : "0";
-  ui.rateEl.textContent = `${rate}/s`;
+  const rawRate = level > 0 ? getRate(meta, level) * (meta.efficiency || 1) : 0;
+  const rate = level > 0 ? formatRate(rawRate) : "0";
+  ui.rateEl.textContent = meta.id === "energy" ? `${rate} W` : `${rate}/s`;
 
   if (meta.coresMax && ui.coresContainer) {
     ui.coresContainer.innerHTML = "";
