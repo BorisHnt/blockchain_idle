@@ -21,6 +21,8 @@ const BOARD_STATE_VERSION = 3;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 
+const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu", "collector"]);
+
 const NODES = [
   {
     id: "energy",
@@ -171,6 +173,7 @@ let lastSave = performance.now();
 let wires;
 let cablage;
 let ioMenu;
+let nodeMetrics = {};
 let energyProdRate = 0;
 let energyBalanceRate = 0;
 
@@ -397,6 +400,10 @@ function hasEnergyInput(meta) {
   return !!meta.energyUse && meta.id !== "energy";
 }
 
+function hasUtilGauge(meta) {
+  return UTIL_GAUGE_IDS.has(meta.id);
+}
+
 function isEnergyConnection(conn) {
   return conn.kind === "energy";
 }
@@ -600,6 +607,14 @@ function renderNodes() {
       </div>
       <div class="node-body">
         <div class="node-row"><span>Production</span><span class="node-rate" data-rate>0/s</span></div>
+        ${
+          hasUtilGauge(meta)
+            ? `<div class="node-util">
+                <div class="node-row util-row"><span>Utilisation</span><span data-util-label>0%</span></div>
+                <div class="util-bar"><div class="util-bar-fill" data-util-bar></div></div>
+              </div>`
+            : ""
+        }
         <div class="node-row"><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.coresMax
@@ -653,6 +668,8 @@ function renderNodes() {
       rateEl: card.querySelector("[data-rate]"),
       costEl: card.querySelector("[data-cost]"),
       statusEl: card.querySelector("[data-status]"),
+      utilBar: card.querySelector("[data-util-bar]"),
+      utilLabel: card.querySelector("[data-util-label]"),
       upgradeBtn,
       unlockBtn,
       coreBtn,
@@ -777,13 +794,22 @@ function updateNodeCard(id) {
   }
   ui.card.classList.toggle("idle", !canRun);
 
+  if (ui.utilBar && hasUtilGauge(meta)) {
+    const metrics = nodeMetrics[id] || { potential: 0, actual: 0 };
+    const ratio = metrics.potential > 0 ? clamp(Math.round((metrics.actual / metrics.potential) * 100), 0, 999) : 0;
+    ui.utilLabel.textContent = `${ratio}%`;
+    ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
+    ui.utilBar.classList.toggle("low", ratio < 35);
+    ui.utilBar.classList.toggle("mid", ratio >= 35 && ratio < 80);
+  }
+
   if (meta.id === "energy") {
     updateEnergyHero(ui);
   }
 }
 
 function runProduction(delta) {
-  const net = simulateProduction(delta, state);
+  const net = simulateProduction(delta, state, { recordMetrics: true });
   const producedRate = (net.energyProduced || 0) / delta;
   const consumedRate = (net.energyConsumed || 0) / delta;
   energyProdRate = energyProdRate * 0.7 + producedRate * 0.3;
@@ -792,51 +818,59 @@ function runProduction(delta) {
   return net;
 }
 
-function simulateProduction(delta, targetState) {
+function simulateProduction(delta, targetState, options = {}) {
+  const { recordMetrics = false } = options;
+  const metrics = recordMetrics ? {} : null;
   const net = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0, energyProduced: 0, energyConsumed: 0 };
   NODES.forEach((meta) => {
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
-    if (!nodeState.unlocked || level <= 0) return;
-    if (meta.input && !hasInputConnection(meta.id)) {
+    if (!nodeState.unlocked || level <= 0) {
+      if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
       return;
     }
-    if (hasEnergyInput(meta) && !hasEnergyConnection(meta.id)) {
-      return;
-    }
+    const missingInputLink = meta.input && !hasInputConnection(meta.id);
+    const missingEnergyLink = hasEnergyInput(meta) && !hasEnergyConnection(meta.id);
     const cores = meta.coresMax ? nodeState.cores || meta.baseCores || 0 : 1;
     const rate = getRate(meta, level) * (meta.efficiency || 1) * cores;
-    let work = rate * delta;
-    if (meta.energyUse) {
+    const potential = rate * delta;
+    let work = missingInputLink || missingEnergyLink ? 0 : potential;
+    if (!missingEnergyLink && meta.energyUse && work > 0) {
       const needed = meta.energyUse * delta;
       const available = targetState.resources.energy || 0;
       const factor = Math.min(1, needed > 0 ? available / needed : 1);
-      if (factor <= 0) return;
-      work *= factor;
-      const consumeEnergy = needed * factor;
-      targetState.resources.energy = Math.max(0, available - consumeEnergy);
-      net.energy -= consumeEnergy;
-      net.energyConsumed += consumeEnergy;
+      if (factor <= 0) {
+        work = 0;
+      } else {
+        work *= factor;
+        const consumeEnergy = needed * factor;
+        targetState.resources.energy = Math.max(0, available - consumeEnergy);
+        net.energy -= consumeEnergy;
+        net.energyConsumed += consumeEnergy;
+      }
     }
-    if (meta.input) {
+    if (!missingInputLink && meta.input) {
       const ratio = meta.inputRatio || 1;
       const available = (targetState.resources[meta.input] || 0) / ratio;
       if (available <= 0) {
-        return;
-      }
-      if (work > available) {
+        work = 0;
+      } else if (work > available) {
         work = available;
       }
       const consume = work * ratio;
       targetState.resources[meta.input] = (targetState.resources[meta.input] || 0) - consume;
       net[meta.input] -= consume;
     }
+    if (metrics) metrics[meta.id] = { potential, actual: work };
     targetState.resources[meta.output] = (targetState.resources[meta.output] || 0) + work;
     net[meta.output] += work;
     if (meta.output === "energy") {
       net.energyProduced += work;
     }
   });
+  if (recordMetrics) {
+    nodeMetrics = metrics;
+  }
   return net;
 }
 

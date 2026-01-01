@@ -464,6 +464,40 @@
   font-weight: 600;
 }
 
+#mod-board .node-util {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px;
+}
+
+#mod-board .node-row.util-row {
+  margin-bottom: 0;
+}
+
+#mod-board .util-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+#mod-board .util-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #5fdab8, #4dd4ff);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+#mod-board .util-bar-fill.mid {
+  background: linear-gradient(90deg, #ffd166, #ffb347);
+}
+
+#mod-board .util-bar-fill.low {
+  background: linear-gradient(90deg, #ff9f5f, #ff5f7a);
+}
+
 #mod-board .node-level {
   padding: 4px 8px;
   border-radius: 8px;
