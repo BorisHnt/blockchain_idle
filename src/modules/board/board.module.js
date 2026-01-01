@@ -39,7 +39,7 @@ const NODES = [
   },
   {
     id: "validator",
-    name: "Validator Grid",
+    name: "Network Computer",
     caption: "Transforme l'énergie en compute",
     type: "source",
     output: "compute",
@@ -596,7 +596,7 @@ function renderNodes() {
           ${
             meta.input
               ? `<span class="pill input">In: ${label(meta.input)}</span>`
-              : meta.id === "energy"
+              : meta.id === "energy" || meta.id === "validator"
               ? ""
               : `<span class="pill source">Source</span>`
           }
