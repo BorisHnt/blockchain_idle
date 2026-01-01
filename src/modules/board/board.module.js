@@ -176,6 +176,8 @@ let ioMenu;
 let nodeMetrics = {};
 let energyProdRate = 0;
 let energyBalanceRate = 0;
+const VAL_UPGRADE_Q = 1.15;
+const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 
 export function createBoardState() {
   return {
@@ -404,6 +406,27 @@ function hasUtilGauge(meta) {
   return UTIL_GAUGE_IDS.has(meta.id);
 }
 
+function round1(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function getValidatorEnergyUse(level) {
+  if (level <= 0) return 170;
+  // Closed form of cumulative increments: base 170 + sum_{k=1..L} (25 + 5k)
+  return round1(170 + 25 * level + 2.5 * level * (level + 1));
+}
+
+function getValidatorUpgradeCost(currentLevel) {
+  const n = currentLevel + 1; // cible
+  const cost = 60 * n + VAL_UPGRADE_B * (Math.pow(VAL_UPGRADE_Q, n - 1) - 1);
+  return round1(cost);
+}
+
+function getEnergyUse(meta, level) {
+  if (meta.id === "validator") return getValidatorEnergyUse(level);
+  return meta.energyUse || 0;
+}
+
 function isEnergyConnection(conn) {
   return conn.kind === "energy";
 }
@@ -446,6 +469,9 @@ function getUpgradeCost(id) {
   if (meta.id === "energy") {
     return getEnergyUpgradeCost(level);
   }
+  if (meta.id === "validator") {
+    return getValidatorUpgradeCost(level);
+  }
   return getGenericUpgradeCost(meta.baseCost, level);
 }
 
@@ -465,6 +491,9 @@ function getCoreCost(id) {
 function getRate(meta, level) {
   if (meta.id === "energy") {
     return getEnergyOutputPerSec(level);
+  }
+  if (meta.id === "validator") {
+    return meta.baseRate * Math.pow(1.2, level - 1);
   }
   const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
@@ -558,6 +587,7 @@ function renderNodes() {
   nodesContainer.innerHTML = "";
   NODES.forEach((meta) => {
     const pos = getNodePosition(meta.id);
+    const level = getLevel(meta.id);
     const card = document.createElement("div");
     card.className = "node-card";
     card.style.left = `${pos.x}px`;
@@ -600,7 +630,7 @@ function renderNodes() {
               ? ""
               : `<span class="pill source">Source</span>`
           }
-          ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
+          ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
           ${
             hasOutputAnchor(meta)
               ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${
@@ -847,8 +877,9 @@ function simulateProduction(delta, targetState, options = {}) {
     const rate = getRate(meta, level) * (meta.efficiency || 1) * cores;
     const potential = rate * delta;
     let work = missingInputLink || missingEnergyLink ? 0 : potential;
-    if (!missingEnergyLink && meta.energyUse && work > 0) {
-      const needed = meta.energyUse * delta;
+    const energyUse = getEnergyUse(meta, level);
+    if (!missingEnergyLink && energyUse && work > 0) {
+      const needed = energyUse * delta;
       const available = targetState.resources.energy || 0;
       const factor = Math.min(1, needed > 0 ? available / needed : 1);
       if (factor <= 0) {
