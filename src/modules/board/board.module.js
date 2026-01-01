@@ -593,7 +593,13 @@ function renderNodes() {
           ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
         </div>
         <div class="flow">
-          ${meta.input ? `<span class="pill input">In: ${label(meta.input)}</span>` : `<span class="pill source">Source</span>`}
+          ${
+            meta.input
+              ? `<span class="pill input">In: ${label(meta.input)}</span>`
+              : meta.id === "energy"
+              ? ""
+              : `<span class="pill source">Source</span>`
+          }
           ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${meta.energyUse || 0}W</span>` : ""}
           ${hasOutputAnchor(meta) ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${label(meta.output)}</span>` : `<span class="pill output muted">Out: -</span>`}
         </div>
@@ -985,7 +991,7 @@ function label(resource) {
     case "skill":
       return "XP";
     case "energy":
-      return "W";
+      return "Energy";
     default:
       return resource;
   }
