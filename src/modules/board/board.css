@@ -238,6 +238,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(120deg, rgba(255, 209, 102, 0.2), rgba(255, 209, 102, 0.08));
+  border-color: rgba(255, 209, 102, 0.4);
+}
+
+#mod-board .power-row-btn.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+#mod-board .power-row-btn:not(.ghost):not(.power-full):not(:disabled):hover {
+  border-color: rgba(255, 209, 102, 0.7);
+  box-shadow: 0 10px 20px rgba(255, 209, 102, 0.18);
 }
 
 #mod-board .power-section button.power-full {

@@ -1130,10 +1130,11 @@ function updatePowerCellsUI(ui) {
       }
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "ghost power-row-btn";
+      btn.className = "power-row-btn";
 
       const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
       if (!b.unlocked) {
+        btn.classList.add("ghost");
         const cost = unlockEligible ? computeUnlockBlockCost(idx - 1) : null;
         btn.disabled = !cost || state.resources.coin < cost;
         btn.innerHTML = cost ? `Bloc verrouillé<br>(${formatNumber(cost)} CXT)` : "Bloc verrouillé";
