@@ -792,7 +792,7 @@ function updateNodeCard(id) {
     }
   }
 
-  const hasInput = meta.input ? state.resources[meta.input] > 0 || level === 0 : true;
+  const hasInput = meta.input ? hasInputConnection(id) || level === 0 : true;
   const canRun = (!meta.input || connected) && powered && hasInput;
   if (!powered && hasEnergyInput(meta)) {
     ui.statusEl.textContent = "Pas d'énergie";
