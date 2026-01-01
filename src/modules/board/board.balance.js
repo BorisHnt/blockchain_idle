@@ -8,10 +8,10 @@ export const ENERGY_LEVEL_GROWTH = 1.25; // croissance de la prod de l'Energy So
 // costFn prend un index de cellule (1-based) et retourne un coût CXT.
 export const POWER_CELLS_PER_BLOCK = 8;
 export const POWER_CELL_BLOCKS = [
-  { power: 50, costFn: (i) => 50 * i - 5 }, // ex: i=1 => 45, i=2 => 95, i=3 => 145
-  { power: 100, costFn: (i) => 100 * (2 * i) - 10 }, // ex: i=1 => 190, i=2 => 390
-  { power: 200, costFn: (i) => 200 * (4 * i) - 20 }, // ex: i=1 => 780, i=2 => 1580
-  { power: 400, costFn: (i) => 400 * (8 * i) - 40 }, // ex: i=1 => 3160, i=2 => 6360
+  { power: 50, costFn: (i) => 100 * i - 5 }, // ex: i=1 => 45, i=2 => 95, i=3 => 145
+  { power: 100, costFn: (i) => 200 * (2 * i) - 10 }, // ex: i=1 => 190, i=2 => 390
+  { power: 200, costFn: (i) => 400 * (4 * i) - 20 }, // ex: i=1 => 780, i=2 => 1580
+  { power: 400, costFn: (i) => 800 * (8 * i) - 40 }, // ex: i=1 => 3160, i=2 => 6360
 ];
 
 // Coût de base du multiplicateur de puissance des Power Cells.

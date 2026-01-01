@@ -1092,6 +1092,7 @@ function updatePowerCellsUI(ui) {
     const cell = document.createElement("div");
     cell.className = "power-cell";
     if (i < block.cells) cell.classList.add("filled");
+    if (block.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
     ui.powerGrid.appendChild(cell);
   }
   const nextCell = getNextPowerCellCost();
@@ -1099,9 +1100,11 @@ function updatePowerCellsUI(ui) {
     if (nextCell) {
       ui.addCellBtn.disabled = state.resources.coin < nextCell.cost;
       ui.addCellBtn.textContent = `Add Power Cell (${formatNumber(nextCell.cost)} CXT)`;
+      ui.addCellBtn.classList.toggle("power-full", false);
     } else {
       ui.addCellBtn.disabled = true;
       ui.addCellBtn.textContent = "Block complet";
+      ui.addCellBtn.classList.toggle("power-full", true);
     }
   }
   if (ui.blockLabel) {
@@ -1113,11 +1116,9 @@ function updatePowerCellsUI(ui) {
       ui.addBlockBtn.disabled = state.resources.coin < unlockInfo.cost;
       ui.addBlockBtn.textContent = `Add Power Cell Block (${formatNumber(unlockInfo.cost)} CXT)`;
     } else {
+      const allUnlocked = pcState.blocks.every((b) => b.unlocked);
       ui.addBlockBtn.disabled = true;
-      ui.addBlockBtn.textContent =
-        pcState.blocks.every((b) => b.unlocked) && pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK)
-          ? "Tous les blocs débloqués"
-          : "—";
+      ui.addBlockBtn.textContent = allUnlocked ? "Tous les blocs débloqués" : "Bloc verrouillé";
     }
   }
 
