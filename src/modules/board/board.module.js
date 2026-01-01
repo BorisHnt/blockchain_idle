@@ -17,10 +17,10 @@ const NODES = [
     caption: "Alimentation du réseau",
     type: "source",
     output: "energy",
-    baseRate: 900,
+    baseRate: 500,
     baseCost: 0,
     x: 80,
-    y: 120,
+    y: 100,
     startLevel: 1,
     startUnlocked: true,
   },
@@ -34,7 +34,7 @@ const NODES = [
     baseRate: 4.2,
     baseCost: 60,
     x: 80,
-    y: 360,
+    y: 450,
     startLevel: 1,
     startUnlocked: true,
   },
@@ -394,6 +394,10 @@ function isUnlocked(id) {
 function getUpgradeCost(id) {
   const meta = getNodeMeta(id);
   const level = getLevel(id);
+  if (meta.id === "energy") {
+    const nextLevel = level + 1;
+    return Math.round(100 * Math.exp(2 * Math.pow(Math.max(1, nextLevel) - 1, 0.5)));
+  }
   return Math.round(meta.baseCost * Math.pow(1.22, level));
 }
 
@@ -411,7 +415,7 @@ function getCoreCost(id) {
 }
 
 function getRate(meta, level) {
-  const scale = Math.pow(1.18, level - 1);
+  const scale = meta.id === "energy" ? Math.pow(1.1, level - 1) : Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
 }
 
