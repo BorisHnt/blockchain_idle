@@ -665,8 +665,6 @@ function renderNodes() {
       energyLogo: card.querySelector("[data-energy-logo]"),
       energyBar: card.querySelector("[data-energy-bar]"),
       powerStacks: card.querySelector("[data-power-stacks]"),
-      addCellBtn: card.querySelector("[data-add-cell]"),
-      addBlockBtn: card.querySelector("[data-add-block]"),
       blockLabel: card.querySelector("[data-power-block-label]"),
       multWrapper: card.querySelector("[data-power-mult]"),
       multBtn: card.querySelector("[data-upgrade-mult]"),
@@ -675,9 +673,7 @@ function renderNodes() {
     };
 
     if (meta.id === "energy") {
-      const { addCellBtn, addBlockBtn, multBtn } = bindings[meta.id];
-      addCellBtn?.addEventListener("click", () => addPowerCell());
-      addBlockBtn?.addEventListener("click", () => unlockNextPowerBlock());
+      const { multBtn } = bindings[meta.id];
       multBtn?.addEventListener("click", () => upgradePowerMultiplier());
     }
 
@@ -1018,13 +1014,6 @@ function getNextPowerCellCost() {
   return { cost: getPowerCellCost(currentIdx, nextCellIndex), block: currentIdx };
 }
 
-function getUnlockNextBlockCost() {
-  const pcState = getPowerCellsState();
-  const nextBlockIdx = pcState.blocks.findIndex((b, idx) => !b.unlocked && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK);
-  if (nextBlockIdx <= 0) return null;
-  return { cost: computeUnlockBlockCost(nextBlockIdx - 1), block: nextBlockIdx };
-}
-
 function getMultiplierCost() {
   const pcState = getPowerCellsState();
   if (!pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK)) return null;
@@ -1033,31 +1022,36 @@ function getMultiplierCost() {
   return { cost: Math.round(cost), level };
 }
 
-function addPowerCell() {
-  const next = getNextPowerCellCost();
-  if (!next) return;
-  if (state.resources.coin < next.cost) {
+function addPowerCell(blockIndex) {
+  const pcState = getPowerCellsState();
+  const targetIdx =
+    typeof blockIndex === "number" ? blockIndex : pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
+  if (targetIdx === -1) return;
+  const nextCellIndex = pcState.blocks[targetIdx].cells + 1;
+  const cost = getPowerCellCost(targetIdx, nextCellIndex);
+  if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
     return;
   }
-  state.resources.coin -= next.cost;
-  const pcState = getPowerCellsState();
-  pcState.blocks[next.block].cells = Math.min(POWER_CELLS_PER_BLOCK, pcState.blocks[next.block].cells + 1);
+  state.resources.coin -= cost;
+  pcState.blocks[targetIdx].cells = Math.min(POWER_CELLS_PER_BLOCK, pcState.blocks[targetIdx].cells + 1);
   syncStore();
   updateNodeCard("energy");
   refreshWires();
 }
 
-function unlockNextPowerBlock() {
-  const info = getUnlockNextBlockCost();
-  if (!info) return;
-  if (state.resources.coin < info.cost) {
+function unlockPowerBlock(blockIndex) {
+  const pcState = getPowerCellsState();
+  const prevIdx = blockIndex - 1;
+  if (blockIndex <= 0 || !pcState.blocks[prevIdx] || pcState.blocks[blockIndex]?.unlocked) return;
+  if (pcState.blocks[prevIdx].cells !== POWER_CELLS_PER_BLOCK) return;
+  const cost = computeUnlockBlockCost(prevIdx);
+  if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
     return;
   }
-  state.resources.coin -= info.cost;
-  const pcState = getPowerCellsState();
-  pcState.blocks[info.block].unlocked = true;
+  state.resources.coin -= cost;
+  pcState.blocks[blockIndex].unlocked = true;
   syncStore();
   updateNodeCard("energy");
   refreshWires();
@@ -1087,11 +1081,12 @@ function updatePowerCellsUI(ui) {
   if (ui.powerStacks) {
     ui.powerStacks.innerHTML = "";
     pcState.blocks.forEach((b, idx) => {
-      const stack = document.createElement("div");
-      stack.className = "power-stack";
-      if (!b.unlocked) stack.classList.add("locked");
-      if (idx === activeIdx) stack.classList.add("active");
-      if (b.cells === POWER_CELLS_PER_BLOCK) stack.classList.add("full");
+      const row = document.createElement("div");
+      row.className = "power-row";
+      if (!b.unlocked) row.classList.add("locked");
+      if (idx === activeIdx) row.classList.add("active");
+      if (b.cells === POWER_CELLS_PER_BLOCK) row.classList.add("full");
+
       const grid = document.createElement("div");
       grid.className = "power-grid";
       for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
@@ -1101,35 +1096,38 @@ function updatePowerCellsUI(ui) {
         if (b.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
         grid.appendChild(cell);
       }
-      stack.appendChild(grid);
-      ui.powerStacks.appendChild(stack);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ghost power-row-btn";
+
+      const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
+      if (!b.unlocked) {
+        const cost = unlockEligible ? computeUnlockBlockCost(idx - 1) : null;
+        btn.disabled = !cost || state.resources.coin < cost;
+        btn.innerHTML = cost ? `Bloc verrouillé<br>(${formatNumber(cost)} CXT)` : "Bloc verrouillé";
+        btn.addEventListener("click", () => {
+          if (unlockEligible) unlockPowerBlock(idx);
+        });
+      } else if (b.cells === POWER_CELLS_PER_BLOCK) {
+        btn.disabled = true;
+        btn.classList.add("power-full");
+        btn.innerHTML = "⚡ Super Cell";
+      } else {
+        const nextCellIndex = b.cells + 1;
+        const cost = getPowerCellCost(idx, nextCellIndex);
+        const isActive = idx === activeIdx;
+        btn.disabled = !isActive || state.resources.coin < cost;
+        btn.innerHTML = `Add Power Cell<br>(${formatNumber(cost)} CXT)`;
+        btn.addEventListener("click", () => addPowerCell(idx));
+      }
+
+      row.appendChild(grid);
+      row.appendChild(btn);
+      ui.powerStacks.appendChild(row);
     });
-  }
-  const nextCell = getNextPowerCellCost();
-  if (ui.addCellBtn) {
-    if (nextCell) {
-      ui.addCellBtn.disabled = state.resources.coin < nextCell.cost;
-      ui.addCellBtn.innerHTML = `Add Power Cell<br>(${formatNumber(nextCell.cost)} CXT)`;
-      ui.addCellBtn.classList.toggle("power-full", false);
-    } else {
-      ui.addCellBtn.disabled = true;
-      ui.addCellBtn.innerHTML = `⚡ Super Cell`;
-      ui.addCellBtn.classList.toggle("power-full", true);
-    }
   }
   if (ui.blockLabel) {
     ui.blockLabel.textContent = `Bloc ${activeIdx + 1} (${block.cells}/${POWER_CELLS_PER_BLOCK}) · +${def.power} W/cell`;
-  }
-  const unlockInfo = getUnlockNextBlockCost();
-  if (ui.addBlockBtn) {
-    if (unlockInfo) {
-      ui.addBlockBtn.disabled = state.resources.coin < unlockInfo.cost;
-      ui.addBlockBtn.textContent = `Add Power Cell Block (${formatNumber(unlockInfo.cost)} CXT)`;
-    } else {
-      const allUnlocked = pcState.blocks.every((b) => b.unlocked);
-      ui.addBlockBtn.disabled = true;
-      ui.addBlockBtn.textContent = allUnlocked ? "Tous les blocs débloqués" : "Bloc verrouillé";
-    }
   }
 
   if (ui.multWrapper) {
