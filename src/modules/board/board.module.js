@@ -614,8 +614,8 @@ function renderNodes() {
             ? `<div class="power-section">
                 <div class="power-header" data-power-block-label>Bloc 1 (0/8) · +50 W/cell</div>
                 <div class="power-stacks" data-power-stacks></div>
-                <button data-add-cell class="ghost">Add Power Cell</button>
-                <button data-add-block class="ghost">Add Power Cell Block</button>
+                <button data-add-cell class="ghost">Power Cell</button>
+                <button data-add-block class="ghost">Power Cell Block</button>
                 <div class="power-mult" data-power-mult style="display:none;">
                   <div class="node-row"><span>Multiplicateur</span><span data-mult-level>1x</span></div>
                   <button data-upgrade-mult>Upgrade Multiplicateur</button>
@@ -1117,7 +1117,7 @@ function updatePowerCellsUI(ui) {
         const cost = getPowerCellCost(idx, nextCellIndex);
         const isActive = idx === activeIdx;
         btn.disabled = !isActive || state.resources.coin < cost;
-        btn.innerHTML = `Add Power Cell<br>(${formatNumber(cost)} CXT)`;
+        btn.innerHTML = `Power Cell<br>(${formatNumber(cost)} CXT)`;
         btn.addEventListener("click", () => addPowerCell(idx));
       }
 
