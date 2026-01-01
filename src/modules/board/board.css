@@ -238,8 +238,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(120deg, rgba(255, 209, 102, 0.2), rgba(255, 209, 102, 0.08));
-  border-color: rgba(255, 209, 102, 0.4);
+  background: linear-gradient(120deg, rgba(77, 212, 255, 0.15), rgba(77, 212, 255, 0.08));
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 #mod-board .power-row-btn.ghost {
@@ -248,8 +248,8 @@
 }
 
 #mod-board .power-row-btn:not(.ghost):not(.power-full):not(:disabled):hover {
-  border-color: rgba(255, 209, 102, 0.7);
-  box-shadow: 0 10px 20px rgba(255, 209, 102, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 20px rgba(77, 212, 255, 0.15);
 }
 
 #mod-board .power-section button.power-full {

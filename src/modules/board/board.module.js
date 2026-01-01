@@ -1105,6 +1105,17 @@ function upgradePowerMultiplier() {
 
 function updatePowerCellsUI(ui) {
   const pcState = getPowerCellsState();
+  // Auto-unlock next block when the previous one is full
+  let unlockedChanged = false;
+  pcState.blocks.forEach((b, idx) => {
+    if (!b.unlocked && idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK) {
+      b.unlocked = true;
+      unlockedChanged = true;
+    }
+  });
+  if (unlockedChanged) {
+    syncStore();
+  }
   const currentBlockIdx = pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
   const activeIdx = currentBlockIdx === -1 ? pcState.blocks.length - 1 : currentBlockIdx;
   const block = pcState.blocks[activeIdx];
@@ -1135,12 +1146,8 @@ function updatePowerCellsUI(ui) {
       const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
       if (!b.unlocked) {
         btn.classList.add("ghost");
-        const cost = unlockEligible ? computeUnlockBlockCost(idx - 1) : null;
-        btn.disabled = !cost || state.resources.coin < cost;
-        btn.innerHTML = cost ? `Bloc verrouillé<br>(${formatNumber(cost)} CXT)` : "Bloc verrouillé";
-        btn.addEventListener("click", () => {
-          if (unlockEligible) unlockPowerBlock(idx);
-        });
+        btn.disabled = true;
+        btn.textContent = "Bloc verrouillé";
       } else if (b.cells === POWER_CELLS_PER_BLOCK) {
         btn.disabled = true;
         btn.classList.add("power-full");
