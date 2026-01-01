@@ -181,7 +181,7 @@
 
 #mod-board .power-grid-wrapper {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: max-content 1fr;
   gap: 12px;
   align-items: center;
 }
@@ -219,6 +219,7 @@
 
 #mod-board .power-section button {
   width: 100%;
+  white-space: nowrap;
 }
 
 #mod-board .power-section button.power-full {
