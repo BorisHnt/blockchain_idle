@@ -306,7 +306,8 @@
 #mod-board .io-group {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  column-gap: 5px;
+  row-gap: 12px;
   align-items: center;
   margin: 12px 0;
   width: 100%;
