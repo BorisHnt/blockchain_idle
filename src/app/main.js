@@ -101,6 +101,7 @@ function renderHud(resources, rates) {
 function attachControls() {
   const saveBtn = document.getElementById("save-btn");
   const resetBtn = document.getElementById("reset-btn");
+  const clearBtn = document.getElementById("clear-all-btn");
   saveBtn?.addEventListener("click", () => {
     persistState();
     flashHint("Sauvegardé");
@@ -108,6 +109,16 @@ function attachControls() {
   resetBtn?.addEventListener("click", () => {
     if (confirm("Supprimer la sauvegarde et repartir de zéro ?")) {
       storage.removeItem(STORAGE_KEY);
+      location.reload();
+    }
+  });
+  clearBtn?.addEventListener("click", () => {
+    if (confirm("Purger TOUT le stockage local pour ce jeu ? (sauvegardes, prefs)")) {
+      try {
+        window.localStorage.clear();
+      } catch (e) {
+        console.warn("clear storage failed", e);
+      }
       location.reload();
     }
   });
