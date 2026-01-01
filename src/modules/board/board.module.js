@@ -21,7 +21,7 @@ const NODES = [
     baseCost: 0,
     x: 80,
     y: 100,
-    startLevel: 1,
+    startLevel: 0,
     startUnlocked: true,
   },
   {
