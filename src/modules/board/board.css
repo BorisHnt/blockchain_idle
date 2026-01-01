@@ -226,13 +226,18 @@
 
 #mod-board .power-section button {
   width: 100%;
-  white-space: nowrap;
+  white-space: normal;
   text-align: center;
+  line-height: 1.2;
 }
 
 #mod-board .power-row-btn {
   width: 100%;
-  white-space: nowrap;
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 #mod-board .power-section button.power-full {

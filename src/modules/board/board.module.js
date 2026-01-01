@@ -1115,7 +1115,7 @@ function updatePowerCellsUI(ui) {
         const cost = getPowerCellCost(idx, nextCellIndex);
         const isActive = idx === activeIdx;
         btn.disabled = !isActive || state.resources.coin < cost;
-        btn.textContent = `Power Cell<br>(${formatNumber(cost)} CXT)`;
+        btn.innerHTML = `Power Cell<br>(${formatNumber(cost)} CXT)`;
         btn.addEventListener("click", () => addPowerCell(idx));
       }
 
