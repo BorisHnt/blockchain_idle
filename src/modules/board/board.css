@@ -166,6 +166,58 @@
   animation: energy-wiggle 0.45s steps(2, end) infinite;
 }
 
+#mod-board .power-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+#mod-board .power-header {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#mod-board .power-grid-wrapper {
+  display: grid;
+  grid-template-columns: auto 140px;
+  gap: 10px;
+  align-items: center;
+}
+
+#mod-board .power-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 16px);
+  gap: 6px;
+  width: 120px;
+}
+
+#mod-board .power-cell {
+  width: 24px;
+  height: 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#mod-board .power-cell.filled {
+  background: linear-gradient(120deg, #ffd166, #ffec9f);
+  border-color: rgba(255, 209, 102, 0.7);
+  box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
+
+#mod-board .power-mult {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
 #mod-board .energy-bar {
   width: 100%;
   height: 10px;

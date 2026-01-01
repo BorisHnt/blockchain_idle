@@ -7,8 +7,17 @@ export const id = "board";
 export const name = "Playfield";
 
 const LAYOUT_VERSION = 3;
+const BOARD_STATE_VERSION = 3;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
+const POWER_CELLS_PER_BLOCK = 8;
+const POWER_CELL_BLOCKS = [
+  { power: 50, cost: (i) => 50 * i - 5 }, // i starts at 1
+  { power: 100, cost: (i) => 100 * (2 * i) - 10 },
+  { power: 200, cost: (i) => 200 * (4 * i) - 20 },
+  { power: 400, cost: (i) => 400 * (8 * i) - 40 },
+];
+const POWER_MULT_BASE_COST = 400 * (8 * 9); // 28800
 
 const NODES = [
   {
@@ -170,6 +179,8 @@ export function createBoardState() {
     layout: buildDefaultLayout(),
     connections: [],
     layoutVersion: LAYOUT_VERSION,
+    boardVersion: BOARD_STATE_VERSION,
+    powerCells: createDefaultPowerCells(),
     lastSaved: Date.now(),
   };
 }
@@ -233,17 +244,23 @@ function ensureBoardState() {
 function mergeBoardState(saved) {
   const baseNodes = buildDefaultNodes();
   const baseLayout = buildDefaultLayout();
+  const needsReset = saved.boardVersion !== BOARD_STATE_VERSION;
   const merged = {
-    resources: { ...createBoardState().resources, ...(saved.resources || {}) },
-    nodes: { ...baseNodes, ...(saved.nodes || {}) },
+    resources: needsReset ? createBoardState().resources : { ...createBoardState().resources, ...(saved.resources || {}) },
+    nodes: needsReset ? { ...baseNodes } : { ...baseNodes, ...(saved.nodes || {}) },
+    powerCells: needsReset ? createDefaultPowerCells() : mergePowerCells(saved.powerCells),
     layout:
-      saved.layoutVersion === LAYOUT_VERSION ? { ...baseLayout, ...(saved.layout || {}) } : { ...baseLayout },
-    connections: Array.isArray(saved.connections)
-      ? saved.connections
-          .filter(Boolean)
-          .map((c) => ({ ...c, kind: c.kind === "resource" ? "data" : c.kind || "data" }))
-      : [],
+      needsReset || saved.layoutVersion !== LAYOUT_VERSION
+        ? { ...baseLayout }
+        : { ...baseLayout, ...(saved.layout || {}) },
+    connections:
+      needsReset || !Array.isArray(saved.connections)
+        ? []
+        : saved.connections
+            .filter(Boolean)
+            .map((c) => ({ ...c, kind: c.kind === "resource" ? "data" : c.kind || "data" })),
     layoutVersion: LAYOUT_VERSION,
+    boardVersion: BOARD_STATE_VERSION,
     lastSaved: saved.lastSaved || Date.now(),
   };
   NODES.forEach((meta) => {
@@ -331,6 +348,29 @@ function buildDefaultNodes() {
   }, {});
 }
 
+function createDefaultPowerCells() {
+  return {
+    blocks: POWER_CELL_BLOCKS.map((_, idx) => ({ unlocked: idx === 0, cells: 0 })),
+    multiplier: 0,
+  };
+}
+
+function mergePowerCells(saved) {
+  const defaults = createDefaultPowerCells();
+  if (!saved || typeof saved !== "object") return defaults;
+  const blocks = POWER_CELL_BLOCKS.map((_, idx) => {
+    const b = saved.blocks?.[idx] || {};
+    return {
+      unlocked: typeof b.unlocked === "boolean" ? b.unlocked : idx === 0,
+      cells: clamp(b.cells || 0, 0, POWER_CELLS_PER_BLOCK),
+    };
+  });
+  return {
+    blocks,
+    multiplier: clamp(saved.multiplier || 0, 0, 999),
+  };
+}
+
 function buildDefaultLayout() {
   return NODES.reduce((acc, meta) => {
     acc[meta.id] = { x: meta.x, y: meta.y };
@@ -415,7 +455,10 @@ function getCoreCost(id) {
 }
 
 function getRate(meta, level) {
-  const scale = meta.id === "energy" ? Math.pow(1.1, level - 1) : Math.pow(1.18, level - 1);
+  if (meta.id === "energy") {
+    return getEnergyOutputPerSec(level);
+  }
+  const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
 }
 
@@ -565,6 +608,23 @@ function renderNodes() {
               </div>`
             : ""
         }
+        ${
+          meta.id === "energy"
+            ? `<div class="power-section">
+                <div class="power-header" data-power-block-label>Bloc 1 (0/8) · +50 W/cell</div>
+                <div class="power-grid-wrapper">
+                  <div class="power-grid" data-power-grid></div>
+                  <button data-add-cell class="ghost">Add Power Cell</button>
+                </div>
+                <button data-add-block class="ghost">Add Power Cell Block</button>
+                <div class="power-mult" data-power-mult style="display:none;">
+                  <div class="node-row"><span>Multiplicateur</span><span data-mult-level>1x</span></div>
+                  <button data-upgrade-mult>Upgrade Multiplicateur</button>
+                  <div class="muted small" data-mult-cost></div>
+                </div>
+              </div>`
+            : ""
+        }
         <div class="actions">
           <button data-unlock class="ghost">Débloquer</button>
           <button data-upgrade>Améliorer</button>
@@ -580,6 +640,12 @@ function renderNodes() {
     unlockBtn.addEventListener("click", () => unlockNode(meta.id));
     if (coreBtn) {
       coreBtn.addEventListener("click", () => addCore(meta.id));
+    }
+    if (meta.id === "energy") {
+      const { addCellBtn, addBlockBtn, multBtn } = bindings[meta.id];
+      addCellBtn?.addEventListener("click", () => addPowerCell());
+      addBlockBtn?.addEventListener("click", () => unlockNextPowerBlock());
+      multBtn?.addEventListener("click", () => upgradePowerMultiplier());
     }
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
@@ -605,6 +671,14 @@ function renderNodes() {
       outputDot,
       energyLogo: card.querySelector("[data-energy-logo]"),
       energyBar: card.querySelector("[data-energy-bar]"),
+      powerGrid: card.querySelector("[data-power-grid]"),
+      addCellBtn: card.querySelector("[data-add-cell]"),
+      addBlockBtn: card.querySelector("[data-add-block]"),
+      blockLabel: card.querySelector("[data-power-block-label]"),
+      multWrapper: card.querySelector("[data-power-mult]"),
+      multBtn: card.querySelector("[data-upgrade-mult]"),
+      multCost: card.querySelector("[data-mult-cost]"),
+      multLevel: card.querySelector("[data-mult-level]"),
     };
 
     nodesContainer.appendChild(card);
@@ -915,6 +989,150 @@ function updateEnergyHero(ui) {
     const width = Math.min(160, pct); // allow slight overflow for overuse
     ui.energyBar.style.width = `${width}%`;
     ui.energyBar.classList.toggle("overload", overload);
+  }
+
+  updatePowerCellsUI(ui);
+}
+
+function getPowerCellsState() {
+  if (!state.powerCells) {
+    state.powerCells = createDefaultPowerCells();
+  }
+  return state.powerCells;
+}
+
+function getEnergyOutputPerSec(level) {
+  const base = NODES.find((n) => n.id === "energy")?.baseRate || 0;
+  const scaledBase = base * Math.pow(1.25, Math.max(0, level - 1));
+  const pcState = getPowerCellsState();
+  const cellsPower = POWER_CELL_BLOCKS.reduce((sum, def, idx) => sum + def.power * (pcState.blocks[idx]?.cells || 0), 0);
+  const mult = (pcState.multiplier || 0) + 1;
+  return (scaledBase + cellsPower) * mult;
+}
+
+function getNextPowerCellCost() {
+  const pcState = getPowerCellsState();
+  const currentIdx = pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
+  if (currentIdx === -1) return null;
+  const blockDef = POWER_CELL_BLOCKS[currentIdx];
+  const nextCellIndex = pcState.blocks[currentIdx].cells + 1;
+  return { cost: Math.max(0, Math.round(blockDef.cost(nextCellIndex))), block: currentIdx };
+}
+
+function getUnlockNextBlockCost() {
+  const pcState = getPowerCellsState();
+  const nextBlockIdx = pcState.blocks.findIndex((b, idx) => !b.unlocked && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK);
+  if (nextBlockIdx <= 0) return null;
+  const prevDef = POWER_CELL_BLOCKS[nextBlockIdx - 1];
+  return { cost: Math.max(0, Math.round(prevDef.cost(POWER_CELLS_PER_BLOCK + 1))), block: nextBlockIdx };
+}
+
+function getMultiplierCost() {
+  const pcState = getPowerCellsState();
+  if (!pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK)) return null;
+  const level = pcState.multiplier || 0;
+  const cost = POWER_MULT_BASE_COST * Math.pow(2, level);
+  return { cost: Math.round(cost), level };
+}
+
+function addPowerCell() {
+  const next = getNextPowerCellCost();
+  if (!next) return;
+  if (state.resources.coin < next.cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= next.cost;
+  const pcState = getPowerCellsState();
+  pcState.blocks[next.block].cells = Math.min(POWER_CELLS_PER_BLOCK, pcState.blocks[next.block].cells + 1);
+  syncStore();
+  updateNodeCard("energy");
+  refreshWires();
+}
+
+function unlockNextPowerBlock() {
+  const info = getUnlockNextBlockCost();
+  if (!info) return;
+  if (state.resources.coin < info.cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= info.cost;
+  const pcState = getPowerCellsState();
+  pcState.blocks[info.block].unlocked = true;
+  syncStore();
+  updateNodeCard("energy");
+  refreshWires();
+}
+
+function upgradePowerMultiplier() {
+  const info = getMultiplierCost();
+  if (!info) return;
+  if (state.resources.coin < info.cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= info.cost;
+  const pcState = getPowerCellsState();
+  pcState.multiplier = (pcState.multiplier || 0) + 1;
+  syncStore();
+  updateNodeCard("energy");
+}
+
+function updatePowerCellsUI(ui) {
+  if (!ui.powerGrid) return;
+  const pcState = getPowerCellsState();
+  const currentBlockIdx = pcState.blocks.findIndex((b) => b.unlocked && b.cells < POWER_CELLS_PER_BLOCK);
+  const activeIdx = currentBlockIdx === -1 ? pcState.blocks.length - 1 : currentBlockIdx;
+  const block = pcState.blocks[activeIdx];
+  const def = POWER_CELL_BLOCKS[activeIdx];
+
+  ui.powerGrid.innerHTML = "";
+  for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
+    const cell = document.createElement("div");
+    cell.className = "power-cell";
+    if (i < block.cells) cell.classList.add("filled");
+    ui.powerGrid.appendChild(cell);
+  }
+  const nextCell = getNextPowerCellCost();
+  if (ui.addCellBtn) {
+    if (nextCell) {
+      ui.addCellBtn.disabled = state.resources.coin < nextCell.cost;
+      ui.addCellBtn.textContent = `Add Power Cell (${formatNumber(nextCell.cost)} CXT)`;
+    } else {
+      ui.addCellBtn.disabled = true;
+      ui.addCellBtn.textContent = "Block complet";
+    }
+  }
+  if (ui.blockLabel) {
+    ui.blockLabel.textContent = `Bloc ${activeIdx + 1} (${block.cells}/${POWER_CELLS_PER_BLOCK}) · +${def.power} W/cell`;
+  }
+  const unlockInfo = getUnlockNextBlockCost();
+  if (ui.addBlockBtn) {
+    if (unlockInfo) {
+      ui.addBlockBtn.disabled = state.resources.coin < unlockInfo.cost;
+      ui.addBlockBtn.textContent = `Add Power Cell Block (${formatNumber(unlockInfo.cost)} CXT)`;
+    } else {
+      ui.addBlockBtn.disabled = true;
+      ui.addBlockBtn.textContent =
+        pcState.blocks.every((b) => b.unlocked) && pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK)
+          ? "Tous les blocs débloqués"
+          : "—";
+    }
+  }
+
+  if (ui.multWrapper) {
+    const allComplete = pcState.blocks.every((b) => b.cells === POWER_CELLS_PER_BLOCK);
+    ui.multWrapper.style.display = allComplete ? "flex" : "none";
+    if (allComplete) {
+      const multCost = getMultiplierCost();
+      if (ui.multLevel) ui.multLevel.textContent = `${(pcState.multiplier || 0) + 1}x`;
+      if (ui.multCost) ui.multCost.textContent = multCost ? `Coût: ${formatNumber(multCost.cost)} CXT` : "";
+      if (ui.multBtn) {
+        ui.multBtn.disabled = !multCost || state.resources.coin < multCost.cost;
+        ui.multBtn.textContent = "Upgrade Multiplicateur";
+      }
+    }
   }
 }
 
