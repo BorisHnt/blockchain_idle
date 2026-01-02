@@ -950,6 +950,10 @@ function renderNodes() {
     const level = getLevel(meta.id);
     const card = document.createElement("div");
     card.className = "node-card";
+    card.classList.add(`node-${meta.id}`);
+    if (meta.id === "gpu") {
+      card.classList.add("gpu-card");
+    }
     card.style.left = `${pos.x}px`;
     card.style.top = `${pos.y}px`;
     card.dataset.node = meta.id;

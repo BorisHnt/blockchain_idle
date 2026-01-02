@@ -614,45 +614,6 @@
   margin: 6px 0 2px;
 }
 
-#mod-board .gpu-grid {
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-#mod-board .gpu-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#mod-board .gpu-grid-cells {
-  display: grid;
-  grid-template-columns: repeat(8, 10px);
-  grid-auto-rows: 10px;
-  gap: 3px;
-}
-
-#mod-board .gpu-cell {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 255, 128, 0.08);
-}
-
-#mod-board .gpu-cell.filled {
-  background: #2fd18a;
-  box-shadow: 0 0 6px rgba(47, 209, 138, 0.7);
-}
-
-#mod-board .gpu-row-label {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: var(--mono);
-  min-width: 120px;
-}
 
 #mod-board .node-level {
   padding: 4px 8px;

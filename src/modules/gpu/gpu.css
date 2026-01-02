@@ -1,66 +1,65 @@
-#mod-gpu .gpu-card {
+.gpu-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-#mod-gpu .gpu-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-#mod-gpu .gpu-level {
-  background: rgba(255, 159, 67, 0.12);
-  border: 1px solid rgba(255, 159, 67, 0.4);
-  padding: 8px 12px;
-  border-radius: 12px;
-  text-align: center;
-  min-width: 76px;
-}
-
-#mod-gpu .gpu-level strong {
-  display: block;
-  font-size: 22px;
-}
-
-#mod-gpu h2 {
-  margin: 2px 0 4px;
-}
-
-#mod-gpu .gpu-stats {
+.gpu-card .gpu-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
-#mod-gpu .gpu-stats .label {
+.gpu-card .gpu-stats .label {
   color: var(--muted);
   font-size: 12px;
 }
 
-#mod-gpu .gpu-stats .value {
+.gpu-card .gpu-stats .value {
   font-family: var(--mono);
   font-size: 18px;
 }
 
-#mod-gpu .gpu-status {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-}
-
-#mod-gpu .gpu-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-#mod-gpu .gpu-actions button {
-  flex: 0 0 auto;
-}
-
-#mod-gpu .small {
+.gpu-card .small {
   font-size: 12px;
+}
+
+.gpu-card .gpu-grid {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gpu-card .gpu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gpu-card .gpu-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(8, 10px);
+  grid-auto-rows: 10px;
+  gap: 3px;
+}
+
+.gpu-card .gpu-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 255, 128, 0.08);
+}
+
+.gpu-card .gpu-cell.filled {
+  background: #2fd18a;
+  box-shadow: 0 0 6px rgba(47, 209, 138, 0.7);
+}
+
+.gpu-card .gpu-row-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+  min-width: 120px;
 }
