@@ -978,6 +978,9 @@ function updateNodeCard(id) {
     return;
   }
 
+  const hasInput = meta.input ? hasInputConnection(id) || level === 0 : true;
+  const canRun = (!meta.input || connected) && powered && hasInput;
+
   ui.costEl.textContent = `${formatNumber(getUpgradeCost(id))} CXT`;
   const rawRate = level > 0 ? getRate(meta, level) * (meta.efficiency || 1) : 0;
   const rate =
@@ -1048,8 +1051,6 @@ function updateNodeCard(id) {
     }
   }
 
-  const hasInput = meta.input ? hasInputConnection(id) || level === 0 : true;
-  const canRun = (!meta.input || connected) && powered && hasInput;
   if (!powered && hasEnergyInput(meta)) {
     ui.statusEl.textContent = "Pas d'énergie";
     ui.statusEl.style.color = "var(--muted)";
