@@ -63,3 +63,38 @@
   font-family: var(--mono);
   min-width: 120px;
 }
+
+.gpu-card .gpu-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.gpu-card .gpu-main-action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: stretch;
+  justify-content: center;
+}
+
+.gpu-card .gpu-main-action button {
+  min-width: 140px;
+}
+
+.gpu-card .gpu-upgrades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.gpu-card .gpu-upgrades .ram-upgrade {
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

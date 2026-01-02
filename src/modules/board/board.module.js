@@ -195,7 +195,7 @@ const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256];
 
 export function createBoardState() {
   return {
-    resources: { coin: 200, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
+    resources: { coin: 10_000_000_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -660,6 +660,11 @@ function getGpuCardCost(cardNumber) {
   if (cardNumber === 2) return 1_000_000;
   if (cardNumber === 3) return 50_000_000;
   if (cardNumber === 4) return 1_000_000_000;
+  // au-delà de 4 cartes, on continue avec une croissance douce x2 par carte
+  if (cardNumber > 4) {
+    const extra = cardNumber - 4;
+    return Math.round(1_000_000_000 * Math.pow(2, extra));
+  }
   return Infinity;
 }
 
@@ -883,10 +888,6 @@ function upgradeGpuCard() {
   const gpu = state.nodes.gpu || {};
   const cardCount = gpu.cardCount || 1;
   const nextCard = cardCount + 1;
-  if (nextCard > 4) {
-    flashHint("Cartes max atteintes");
-    return;
-  }
   const cost = getGpuCardCost(nextCard);
   if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
@@ -1084,7 +1085,14 @@ function renderNodes() {
         }
         ${
           meta.id === "gpu"
-            ? `<div class="gpu-upgrades">
+            ? `<div class="gpu-main">
+                <div class="gpu-grid" data-gpu-grid></div>
+                <div class="gpu-main-action">
+                  <button data-gpu-main-btn>GPU +1</button>
+                  <div class="muted small" data-gpu-main-cost>Coût: 0 CXT</div>
+                </div>
+              </div>
+              <div class="gpu-upgrades">
                 <div class="ram-upgrade">
                   <div class="node-row"><span>Fréquence</span><span data-gpu-freq>0</span></div>
                   <button data-gpu-freq-btn>Fréquence +1</button>
@@ -1094,16 +1102,6 @@ function renderNodes() {
                   <div class="node-row"><span>Cellules/GPU</span><span data-gpu-cells>0</span></div>
                   <button data-gpu-cells-btn>Cellule +1</button>
                   <div class="muted small" data-gpu-cells-cost>Coût: 0 CXT</div>
-                </div>
-                <div class="ram-upgrade">
-                  <div class="node-row"><span>GPUs</span><span data-gpu-gpus>0</span></div>
-                  <button data-gpu-gpus-btn>GPU +1</button>
-                  <div class="muted small" data-gpu-gpus-cost>Coût: 0 CXT</div>
-                </div>
-                <div class="ram-upgrade">
-                  <div class="node-row"><span>Cartes</span><span data-gpu-cards>0</span></div>
-                  <button data-gpu-cards-btn>Carte +1</button>
-                  <div class="muted small" data-gpu-cards-cost>Coût: 0 CXT</div>
                 </div>
                 <div class="ram-upgrade">
                   <div class="node-row"><span>Chunk size</span><span data-gpu-chunk-label>0</span></div>
@@ -1118,7 +1116,6 @@ function renderNodes() {
               </div>`
             : ""
         }
-        ${meta.id === "gpu" ? `<div class="gpu-grid" data-gpu-grid></div>` : ""}
       ${
         meta.coresMax
           ? `<div class="cores">
@@ -1182,16 +1179,14 @@ function renderNodes() {
     ramFreqBtn?.addEventListener("click", () => handleUpgrade("ram"));
     const gpuFreqBtn = card.querySelector("[data-gpu-freq-btn]");
     const gpuCellsBtn = card.querySelector("[data-gpu-cells-btn]");
-    const gpuGpusBtn = card.querySelector("[data-gpu-gpus-btn]");
-    const gpuCardsBtn = card.querySelector("[data-gpu-cards-btn]");
     const gpuChunkBtn = card.querySelector("[data-gpu-chunk-btn]");
     const gpuCompBtn = card.querySelector("[data-gpu-comp-btn]");
+    const gpuMainBtn = card.querySelector("[data-gpu-main-btn]");
     gpuFreqBtn?.addEventListener("click", () => upgradeGpuFreq());
     gpuCellsBtn?.addEventListener("click", () => upgradeGpuCells());
-    gpuGpusBtn?.addEventListener("click", () => upgradeGpuCount());
-    gpuCardsBtn?.addEventListener("click", () => upgradeGpuCard());
     gpuChunkBtn?.addEventListener("click", () => upgradeGpuChunk());
     gpuCompBtn?.addEventListener("click", () => upgradeGpuCompression());
+    gpuMainBtn?.addEventListener("click", () => handleGpuMainAction());
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
       if (!e.target.closest(".drag-handle")) return;
@@ -1232,12 +1227,9 @@ function renderNodes() {
       gpuCells: card.querySelector("[data-gpu-cells]"),
       gpuCellsBtn: card.querySelector("[data-gpu-cells-btn]"),
       gpuCellsCost: card.querySelector("[data-gpu-cells-cost]"),
-      gpuGpus: card.querySelector("[data-gpu-gpus]"),
-      gpuGpusBtn: card.querySelector("[data-gpu-gpus-btn]"),
-      gpuGpusCost: card.querySelector("[data-gpu-gpus-cost]"),
+      gpuMainBtn: card.querySelector("[data-gpu-main-btn]"),
+      gpuMainCost: card.querySelector("[data-gpu-main-cost]"),
       gpuCards: card.querySelector("[data-gpu-cards]"),
-      gpuCardsBtn: card.querySelector("[data-gpu-cards-btn]"),
-      gpuCardsCost: card.querySelector("[data-gpu-cards-cost]"),
       gpuChunkLabel: card.querySelector("[data-gpu-chunk-label]"),
       gpuChunkBtn: card.querySelector("[data-gpu-chunk-btn]"),
       gpuChunkCost: card.querySelector("[data-gpu-chunk-cost]"),
@@ -1454,8 +1446,8 @@ function updateNodeCard(id) {
     const freqMHz = gpuFreqMHz(1, gs.freqLevel);
     if (ui.gpuFreq) ui.gpuFreq.textContent = `${freqMHz.toFixed(2)} MHz`;
     if (ui.gpuCells) ui.gpuCells.textContent = `${gs.cellsPerGpu}`;
-    if (ui.gpuGpus) ui.gpuGpus.textContent = `${gs.gpuCount} / ${gs.cardCount * 32}`;
-    if (ui.gpuCards) ui.gpuCards.textContent = `${gs.cardCount} / 4`;
+    if (ui.gpuCount) ui.gpuCount.textContent = `${gs.gpuCount} GPU · ${gs.cardCount} carte(s)`;
+    if (ui.gpuCards) ui.gpuCards.textContent = `${gs.cardCount}`;
     if (ui.gpuChunkLabel) ui.gpuChunkLabel.textContent = `${chunkSizeKo} Ko`;
     if (ui.gpuCompLabel) ui.gpuCompLabel.textContent = `${Math.round(comp * 100)}%`;
 
@@ -1469,20 +1461,29 @@ function updateNodeCard(id) {
     const compCost = getGpuCompressionCost(gs.compressionLevel + 1);
     if (ui.gpuFreqCost) ui.gpuFreqCost.textContent = `Coût: ${formatNumber(freqCost)} CXT`;
     if (ui.gpuCellsCost) ui.gpuCellsCost.textContent = `Coût: ${formatNumber(cellsCost)} CXT`;
-    if (ui.gpuGpusCost) ui.gpuGpusCost.textContent = gs.gpuCount >= gs.cardCount * 32 ? "Max" : `Coût: ${formatNumber(gpuCost)} CXT`;
-    if (ui.gpuCardsCost) ui.gpuCardsCost.textContent = nextCard > 4 ? "Max" : `Coût: ${formatNumber(cardCost)} CXT`;
     if (ui.gpuChunkCost) ui.gpuChunkCost.textContent = nextTier >= GPU_CHUNK_SIZES.length ? "Max" : `Coût: ${formatNumber(chunkCost)} CXT`;
     if (ui.gpuCompCost) ui.gpuCompCost.textContent = `Coût: ${formatNumber(compCost)} CXT`;
 
     if (ui.gpuFreqBtn) ui.gpuFreqBtn.disabled = state.resources.coin < freqCost;
     if (ui.gpuCellsBtn) ui.gpuCellsBtn.disabled = state.resources.coin < cellsCost;
-    if (ui.gpuGpusBtn) ui.gpuGpusBtn.disabled = gs.gpuCount >= gs.cardCount * 32 || state.resources.coin < gpuCost;
-    if (ui.gpuCardsBtn) ui.gpuCardsBtn.disabled = nextCard > 4 || state.resources.coin < cardCost;
     if (ui.gpuChunkBtn) ui.gpuChunkBtn.disabled = nextTier >= GPU_CHUNK_SIZES.length || state.resources.coin < chunkCost;
     if (ui.gpuCompBtn) ui.gpuCompBtn.disabled = state.resources.coin < compCost;
 
+    // Bouton principal GPU/Carte
+    const hasCapacity = gs.gpuCount < gs.cardCount * 32;
+    const mainLabel = hasCapacity ? "GPU +1" : "Carte +1";
+    const mainCost = hasCapacity ? gpuCost : cardCost;
+    const canBuy = state.resources.coin >= mainCost && isFinite(mainCost);
+    if (ui.gpuMainBtn) {
+      ui.gpuMainBtn.textContent = mainLabel;
+      ui.gpuMainBtn.disabled = !canBuy;
+    }
+    if (ui.gpuMainCost) {
+      ui.gpuMainCost.textContent = isFinite(mainCost) ? `Coût: ${formatNumber(mainCost)} CXT` : "Max";
+    }
+
     // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
-    ui.costEl.textContent = `${formatNumber(freqCost)} CXT`;
+    ui.costEl.textContent = `${formatNumber(mainCost)} CXT`;
     if (ui.gpuGrid) renderGpuGrid(ui.gpuGrid, gs);
   }
 
@@ -2063,4 +2064,13 @@ function disconnectConnection(conn) {
 
 function onResize() {
   refreshWires();
+}
+function handleGpuMainAction() {
+  const gs = getGpuState();
+  const hasCapacity = gs.gpuCount < gs.cardCount * 32;
+  if (hasCapacity) {
+    upgradeGpuCount();
+  } else {
+    upgradeGpuCard();
+  }
 }
