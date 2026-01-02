@@ -1630,13 +1630,11 @@ function simulateProduction(delta, targetState, options = {}) {
         const energyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
-        const desiredMoEnergy = desiredMoPerSec * delta * energyFactor;
-        const maxMo = Math.min(fill, dischargeRate * delta, desiredMoEnergy);
-        const chunksProcessed = chunkSizeMo > 0 ? maxMo / chunkSizeMo : 0;
+        const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
+        const actualMo = potentialMo * energyFactor;
+        const chunksProcessed = chunkSizeMo > 0 ? actualMo / chunkSizeMo : 0;
         const hashProduced = chunksProcessed * hashesPerChunk;
-        const energyConsume =
-          energyNeeded *
-          (desiredMoPerSec > 0 ? Math.min(1, maxMo / Math.max(desiredMoPerSec * delta, 0.0001)) : 0);
+        const energyConsume = energyNeeded * energyFactor;
         let nextFill = Math.max(0, fill - maxMo);
         if (nextFill <= RAM_EPS) {
           nextFill = 0;
