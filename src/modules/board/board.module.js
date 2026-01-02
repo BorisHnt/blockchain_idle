@@ -184,6 +184,7 @@ let ioMenu;
 let nodeMetrics = {};
 let energyProdRate = 0;
 let energyBalanceRate = 0;
+let lastDelta = 1;
 const VAL_UPGRADE_Q = 1.15;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1.1;
@@ -806,6 +807,18 @@ function renderNodes() {
               </div>`
             : ""
         }
+        ${
+          meta.id === "gpu"
+            ? `<div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
+               <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>`
+            : ""
+        }
+        ${
+          meta.id === "cpu"
+            ? `<div class="node-row small"><span>Hash</span><span data-cpu-hash>0</span></div>
+               <div class="node-row small"><span>Crypto</span><span data-cpu-coin>0</span></div>`
+            : ""
+        }
         <div class="node-row" ${meta.id === "collector" || meta.id === "ram" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.id === "ram"
@@ -910,6 +923,10 @@ function renderNodes() {
       ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
       ramChargeRate: card.querySelector("[data-ram-charge]"),
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
+      gpuData: card.querySelector("[data-gpu-data]"),
+      gpuHash: card.querySelector("[data-gpu-hash]"),
+      cpuHash: card.querySelector("[data-cpu-hash]"),
+      cpuCoin: card.querySelector("[data-cpu-coin]"),
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
       energyDot,
@@ -1075,6 +1092,24 @@ function updateNodeCard(id) {
     if (ui.ramFillPercent) ui.ramFillPercent.textContent = `${pct}%`;
   }
 
+  if (meta.id === "gpu" && (ui.gpuData || ui.gpuHash)) {
+    const metrics = nodeMetrics[id] || { actual: 0 };
+    const deltaSec = lastDelta || 1;
+    const hashPerSec = metrics.actual / deltaSec;
+    const dataPerSec = GPU_HASH_PER_MO > 0 ? hashPerSec / GPU_HASH_PER_MO : 0;
+    if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
+    if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(hashPerSec)}/s`;
+  }
+
+  if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
+    const metrics = nodeMetrics[id] || { actual: 0 };
+    const deltaSec = lastDelta || 1;
+    const hashPerSec = metrics.actual / deltaSec;
+    const coinPerSec = hashPerSec; // 1 hash => 1 coin
+    if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
+    if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
+  }
+
   if (meta.coresMax && ui.coresContainer) {
     ui.coresContainer.innerHTML = "";
     const cores = getCores(id);
@@ -1119,6 +1154,7 @@ function updateNodeCard(id) {
 
 function runProduction(delta) {
   const net = simulateProduction(delta, state, { recordMetrics: true });
+  lastDelta = delta;
   const producedRate = (net.energyProduced || 0) / delta;
   const consumedRate = (net.energyConsumed || 0) / delta;
   energyProdRate = energyProdRate * 0.7 + producedRate * 0.3;
