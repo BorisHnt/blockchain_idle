@@ -21,6 +21,10 @@ const BOARD_STATE_VERSION = 4;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 const GPU_HASH_PER_MO = 0.23; // hash produits par Mo consommé au niveau 1 (hors scaling)
+const RAM_CHARGE_BASE = 10;
+const RAM_CHARGE_GROWTH = 1.15;
+const RAM_DISCHARGE_BASE = 8;
+const RAM_DISCHARGE_GROWTH = 1.15;
 
 const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu", "collector"]);
 
@@ -549,6 +553,14 @@ function getRamFreqCost(level) {
   return Math.round(200 * Math.pow(1.22, Math.max(0, level - 1)));
 }
 
+function getRamChargeRate(level) {
+  return RAM_CHARGE_BASE * Math.pow(RAM_CHARGE_GROWTH, Math.max(0, level - 1));
+}
+
+function getRamDischargeRate(level) {
+  return RAM_DISCHARGE_BASE * Math.pow(RAM_DISCHARGE_GROWTH, Math.max(0, level - 1));
+}
+
 function getRate(meta, level) {
   if (meta.id === "energy") {
     return getEnergyOutputPerSec(level);
@@ -558,6 +570,9 @@ function getRate(meta, level) {
   }
   if (meta.id === "cpu") {
     return CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1);
+  }
+  if (meta.id === "ram") {
+    return getRamChargeRate(level) * (meta.efficiency || 1);
   }
   const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
@@ -1117,7 +1132,8 @@ function simulateProduction(delta, targetState, options = {}) {
       const capLevel = nodeState.capLevel || 1;
       const cap = getRamCapacity(capLevel);
       const currentFill = clamp(nodeState.fill || 0, 0, cap);
-      const desiredCharge = work;
+      const chargeRate = getRamChargeRate(level) * (meta.efficiency || 1);
+      const desiredCharge = chargeRate * delta;
       const energyUse = getEnergyUse(meta, level);
       const neededEnergy = energyUse * delta;
       const availableEnergy = targetState.resources.energy || 0;
@@ -1160,8 +1176,8 @@ function simulateProduction(delta, targetState, options = {}) {
         const ramState = targetState.nodes.ram || {};
         const cap = getRamCapacity(ramState.capLevel || 1);
         const fill = clamp(ramState.fill || 0, 0, cap);
-        const throughput = getRate(meta, level) * (meta.efficiency || 1);
-        const potentialMo = throughput * delta;
+        const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
+        const potentialMo = dischargeRate * delta;
         const energyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
