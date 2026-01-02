@@ -167,7 +167,7 @@ let offlineGainEl;
 
 let state;
 let bindings = {};
-let resourceRates = { coin: 0, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 };
+let resourceRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0 };
 let drag = null;
 let linking = null;
 let accumulator = 0;
@@ -183,7 +183,7 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 
 export function createBoardState() {
   return {
-    resources: { coin: 200, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 },
+    resources: { coin: 200, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -258,6 +258,7 @@ function mergeBoardState(saved) {
   const bandwidth = savedResources.bandwidth ?? savedResources.compute ?? 0;
   const mergedResources = { ...savedResources, bandwidth };
   delete mergedResources.compute;
+  delete mergedResources.data;
   const merged = {
     resources: mergedResources,
     nodes: needsReset ? { ...baseNodes } : { ...baseNodes, ...(saved.nodes || {}) },
@@ -324,6 +325,18 @@ function mergeBoardState(saved) {
         : hasInputAnchor(to) && from.output === to.input)
     );
   });
+  const ramNode = merged.nodes.ram || {};
+  const savedFill =
+    typeof saved?.resources?.data === "number"
+      ? saved.resources.data
+      : typeof ramNode.fill === "number"
+      ? ramNode.fill
+      : 0;
+  const cap = getRamCapacity(ramNode.capLevel || 1);
+  merged.nodes.ram = {
+    ...ramNode,
+    fill: clamp(savedFill, 0, cap),
+  };
   return merged;
 }
 
@@ -369,6 +382,7 @@ function buildDefaultNodes() {
       unlocked: meta.startUnlocked || level > 0,
       cores: meta.coresMax ? meta.baseCores || 0 : undefined,
       capLevel: meta.id === "ram" ? 1 : undefined,
+      fill: meta.id === "ram" ? 0 : undefined,
     };
     return acc;
   }, {});
@@ -735,6 +749,19 @@ function renderNodes() {
       <div class="node-body">
         <div class="node-row"><span>Production</span><span class="node-rate" data-rate>0/s</span></div>
         ${
+          meta.id === "ram"
+            ? `<div class="ram-meter">
+                <div class="ram-meter-bar">
+                  <div class="ram-meter-fill" data-ram-fill></div>
+                </div>
+                <div class="node-row ram-meter-row">
+                  <span data-ram-fill-text>0 / 0</span>
+                  <span class="muted" data-ram-fill-percent>0%</span>
+                </div>
+              </div>`
+            : ""
+        }
+        ${
           hasUtilGauge(meta)
             ? `<div class="node-util">
                 <div class="node-row util-row"><span>Utilisation</span><span data-util-label>0%</span></div>
@@ -837,6 +864,9 @@ function renderNodes() {
       ramFreqBtn,
       ramCapCost: card.querySelector("[data-ram-cap-cost]"),
       ramFreqCost: card.querySelector("[data-ram-freq-cost]"),
+      ramFill: card.querySelector("[data-ram-fill]"),
+      ramFillText: card.querySelector("[data-ram-fill-text]"),
+      ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
       energyDot,
@@ -867,7 +897,6 @@ function updateHud() {
   const hud = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
     ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
-    ["data", "stat-data", "rate-data", "Data"],
     ["hash", "stat-hash", "rate-hash", "Hash"],
     ["skill", "stat-skill", "rate-skill", "XP"],
   ];
@@ -973,7 +1002,10 @@ function updateNodeCard(id) {
   if (meta.id === "ram") {
     const capLevel = getRamCapLevel();
     const cap = getRamCapacity(capLevel);
-    if (ui.ramCapValue) ui.ramCapValue.textContent = `${formatNumber(cap)} Data`;
+    const ramState = state.nodes?.ram || {};
+    const fill = clamp(ramState.fill || 0, 0, cap);
+    const pct = cap > 0 ? Math.round((fill / cap) * 100) : 0;
+    if (ui.ramCapValue) ui.ramCapValue.textContent = `${formatBandwidth(cap).replace("/s", "")}`;
     if (ui.ramFreqValue) ui.ramFreqValue.textContent = `Niv. ${level}`;
     if (ui.ramCapCost) ui.ramCapCost.textContent = `Coût: ${formatNumber(getRamCapCost(capLevel))} CXT`;
     if (ui.ramFreqCost) ui.ramFreqCost.textContent = `Coût: ${formatNumber(getRamFreqCost(level))} CXT`;
@@ -985,6 +1017,12 @@ function updateNodeCard(id) {
     }
     // On affiche le coût principal comme le coût fréquence pour cohérence.
     ui.costEl.textContent = `${formatNumber(getRamFreqCost(level))} CXT`;
+    if (ui.ramFill) {
+      ui.ramFill.style.width = `${Math.min(100, pct)}%`;
+      ui.ramFill.style.opacity = 0.35 + (pct / 100) * 0.65;
+    }
+    if (ui.ramFillText) ui.ramFillText.textContent = `${formatBandwidth(fill).replace("/s", "")} / ${formatBandwidth(cap).replace("/s", "")}`;
+    if (ui.ramFillPercent) ui.ramFillPercent.textContent = `${pct}%`;
   }
 
   if (meta.coresMax && ui.coresContainer) {
@@ -1048,7 +1086,6 @@ function simulateProduction(delta, targetState, options = {}) {
     coin: 0,
     hash: 0,
     bandwidth: 0,
-    data: 0,
     skill: 0,
     energy: 0,
     energyProduced: 0,
@@ -1067,17 +1104,34 @@ function simulateProduction(delta, targetState, options = {}) {
     const rate = getRate(meta, level) * (meta.efficiency || 1) * cores;
     const potential = rate * delta;
     let work = missingInputLink || missingEnergyLink ? 0 : potential;
+
     if (meta.id === "ram") {
       const capLevel = nodeState.capLevel || 1;
       const cap = getRamCapacity(capLevel);
-      const currentData = targetState.resources.data || 0;
-      const space = Math.max(0, cap - currentData);
-      if (space <= 0) {
-        work = 0;
-      } else if (work > space) {
-        work = space;
-      }
+      const currentFill = clamp(nodeState.fill || 0, 0, cap);
+      const desiredCharge = work;
+      const energyUse = getEnergyUse(meta, level);
+      const neededEnergy = energyUse * delta;
+      const availableEnergy = targetState.resources.energy || 0;
+      const energyFactor = neededEnergy > 0 ? Math.min(1, availableEnergy / neededEnergy) : 1;
+      const availableBandwidth = targetState.resources.bandwidth || 0;
+      const bandwidthFactor = desiredCharge > 0 ? Math.min(1, availableBandwidth / desiredCharge) : 1;
+      const factor = Math.min(energyFactor, bandwidthFactor);
+      let charge = desiredCharge * factor;
+      const space = Math.max(0, cap - currentFill);
+      if (charge > space) charge = space;
+      const energyConsume = neededEnergy * (desiredCharge > 0 ? charge / desiredCharge : 0);
+      const bandwidthConsume = charge;
+      targetState.resources.energy = Math.max(0, availableEnergy - energyConsume);
+      targetState.resources.bandwidth = Math.max(0, availableBandwidth - bandwidthConsume);
+      net.energy -= energyConsume;
+      net.energyConsumed += energyConsume;
+      net.bandwidth -= bandwidthConsume;
+      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge };
+      if (metrics) metrics[meta.id] = { potential: desiredCharge, actual: charge };
+      return;
     }
+
     const energyUse = getEnergyUse(meta, level);
     if (!missingEnergyLink && energyUse && work > 0) {
       const needed = energyUse * delta;
@@ -1094,16 +1148,28 @@ function simulateProduction(delta, targetState, options = {}) {
       }
     }
     if (!missingInputLink && meta.input) {
-      const ratio = meta.inputRatio || 1;
-      const available = (targetState.resources[meta.input] || 0) / ratio;
-      if (available <= 0) {
-        work = 0;
-      } else if (work > available) {
-        work = available;
+      if (meta.input === "data") {
+        const ramState = targetState.nodes.ram || {};
+        const cap = getRamCapacity(ramState.capLevel || 1);
+        const fill = clamp(ramState.fill || 0, 0, cap);
+        if (fill <= 0) {
+          work = 0;
+        } else if (work > fill) {
+          work = fill;
+        }
+        targetState.nodes.ram = { ...ramState, fill: Math.max(0, fill - work) };
+      } else {
+        const ratio = meta.inputRatio || 1;
+        const available = (targetState.resources[meta.input] || 0) / ratio;
+        if (available <= 0) {
+          work = 0;
+        } else if (work > available) {
+          work = available;
+        }
+        const consume = work * ratio;
+        targetState.resources[meta.input] = (targetState.resources[meta.input] || 0) - consume;
+        net[meta.input] -= consume;
       }
-      const consume = work * ratio;
-      targetState.resources[meta.input] = (targetState.resources[meta.input] || 0) - consume;
-      net[meta.input] -= consume;
     }
     if (metrics) metrics[meta.id] = { potential, actual: work };
     targetState.resources[meta.output] = (targetState.resources[meta.output] || 0) + work;

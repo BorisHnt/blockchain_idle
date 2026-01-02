@@ -541,6 +541,31 @@
   color: #a7ecff;
 }
 
+#mod-board .ram-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#mod-board .ram-meter-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+#mod-board .ram-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4dd4ff, #5fdab8);
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+#mod-board .ram-meter-row {
+  font-family: var(--mono);
+}
+
 #mod-board .util-bar {
   height: 8px;
   border-radius: 999px;

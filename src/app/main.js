@@ -25,7 +25,7 @@ const modules = buildModules();
 let lastFrame = performance.now();
 let lastSave = performance.now();
 let lastResources = { ...store.getState().resources };
-let smoothedRates = { coin: 0, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 };
+let smoothedRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0 };
 
 bootstrap();
 
@@ -86,7 +86,6 @@ function renderHud(resources, rates) {
   const mapping = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
     ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
-    ["data", "stat-data", "rate-data", "Data"],
     ["hash", "stat-hash", "rate-hash", "Hash"],
     ["energy", "stat-energy", "rate-energy", "W"],
     ["skill", "stat-skill", "rate-skill", "XP"],
@@ -177,6 +176,7 @@ function loadState() {
       mergedResources.bandwidth = mergedResources.compute;
     }
     delete mergedResources.compute;
+    delete mergedResources.data;
     const merged = {
       ...defaults,
       ...parsed,
