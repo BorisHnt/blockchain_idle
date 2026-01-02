@@ -1114,6 +1114,7 @@ function renderNodes() {
               </div>`
             : ""
         }
+        ${meta.id === "gpu" ? `<div class="gpu-grid" data-gpu-grid></div>` : ""}
       ${
         meta.coresMax
           ? `<div class="cores">
@@ -1241,6 +1242,7 @@ function renderNodes() {
       gpuCompCost: card.querySelector("[data-gpu-comp-cost]"),
       gpuData: card.querySelector("[data-gpu-data]"),
       gpuHash: card.querySelector("[data-gpu-hash]"),
+      gpuGrid: card.querySelector("[data-gpu-grid]"),
       cpuHash: card.querySelector("[data-cpu-hash]"),
       cpuCoin: card.querySelector("[data-cpu-coin]"),
       coresContainer: card.querySelector("[data-cores]"),
@@ -1477,6 +1479,7 @@ function updateNodeCard(id) {
 
     // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
     ui.costEl.textContent = `${formatNumber(freqCost)} CXT`;
+    if (ui.gpuGrid) renderGpuGrid(ui.gpuGrid, gs);
   }
 
   if (meta.coresMax && ui.coresContainer) {
@@ -2003,6 +2006,34 @@ function updatePowerCellsUI(ui) {
         ui.multBtn.textContent = "Upgrade Multiplicateur";
       }
     }
+  }
+}
+
+function renderGpuGrid(container, gs) {
+  if (!container) return;
+  container.innerHTML = "";
+  const cards = gs.cardCount;
+  let remaining = gs.gpuCount;
+  const maxPerCard = 32;
+  for (let i = 0; i < cards; i++) {
+    const row = document.createElement("div");
+    row.className = "gpu-row";
+    const grid = document.createElement("div");
+    grid.className = "gpu-grid-cells";
+    const countOnCard = Math.min(maxPerCard, remaining);
+    for (let c = 0; c < maxPerCard; c++) {
+      const cell = document.createElement("div");
+      cell.className = "gpu-cell";
+      if (c < countOnCard) cell.classList.add("filled");
+      grid.appendChild(cell);
+    }
+    remaining = Math.max(0, remaining - countOnCard);
+    const label = document.createElement("div");
+    label.className = "gpu-row-label";
+    label.textContent = `Carte ${i + 1} (${countOnCard}/${maxPerCard})`;
+    row.appendChild(grid);
+    row.appendChild(label);
+    container.appendChild(row);
   }
 }
 
