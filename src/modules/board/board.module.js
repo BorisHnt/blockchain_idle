@@ -610,14 +610,16 @@ function formatUnlockCost(cost) {
 
 function unlockNode(id) {
   const meta = getNodeMeta(id);
-  if (!meta.unlock) return;
-  if (meta.id !== "energy" && !canUnlock(meta)) {
-    flashHint("Conditions non remplies");
-    return;
+  if (!meta.unlock && meta.id !== "energy") return;
+  if (meta.id !== "energy") {
+    if (!canUnlock(meta)) {
+      flashHint("Conditions non remplies");
+      return;
+    }
+    const { coin = 0, skill = 0 } = meta.unlock;
+    state.resources.coin -= coin;
+    state.resources.skill -= skill;
   }
-  const { coin = 0, skill = 0 } = meta.unlock;
-  state.resources.coin -= coin;
-  state.resources.skill -= skill;
   state.nodes[id] = { ...state.nodes[id], unlocked: true, level: Math.max(1, getLevel(id)) };
   updateNodeCard(id);
   refreshWires();
@@ -976,12 +978,13 @@ function updateNodeCard(id) {
   const connected = !meta.input || hasInputConnection(id);
   const powered = !hasEnergyInput(meta) || hasEnergyConnection(id);
   ui.levelEl.textContent = level;
-  ui.card.classList.toggle("locked", !unlocked);
-  ui.unlockBtn.style.display = unlocked ? "none" : "inline-flex";
-  ui.upgradeBtn.style.display = unlocked ? "inline-flex" : "none";
-  ui.unlockBtn.disabled = unlocked || !canUnlock(meta);
-  ui.upgradeBtn.disabled = !unlocked || state.resources.coin < getUpgradeCost(id);
-  if (meta.id === "energy" && !unlocked) {
+  const isEnergyOff = meta.id === "energy" && level === 0;
+  ui.card.classList.toggle("locked", !unlocked && !isEnergyOff);
+  ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+  ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
+  ui.unlockBtn.disabled = unlocked || isEnergyOff || !canUnlock(meta);
+  ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
+  if (meta.id === "energy" && isEnergyOff) {
     ui.upgradeBtn.textContent = "ALLUMER";
   } else if (meta.id === "ram") {
     ui.upgradeBtn.textContent = "Fréquence +1";
@@ -992,8 +995,8 @@ function updateNodeCard(id) {
     ui.upgradeBtn.textContent = "Fréquence +1";
   }
 
-  if (!unlocked) {
-    ui.costEl.textContent = meta.id === "energy" ? "Gratuit" : formatUnlockCost(meta.unlock);
+  if (!unlocked && !isEnergyOff) {
+    ui.costEl.textContent = formatUnlockCost(meta.unlock);
     ui.rateEl.textContent = meta.id === "energy" ? "0 W" : "0/s";
     ui.statusEl.textContent = "Verrouillé";
     ui.statusEl.style.color = "var(--muted)";
@@ -1164,18 +1167,20 @@ function simulateProduction(delta, targetState, options = {}) {
     }
 
     const energyUse = getEnergyUse(meta, level);
-    if (!missingEnergyLink && energyUse && work > 0) {
-      const needed = energyUse * delta;
-      const available = targetState.resources.energy || 0;
-      const factor = Math.min(1, needed > 0 ? available / needed : 1);
-      if (factor <= 0) {
-        work = 0;
-      } else {
-        work *= factor;
-        const consumeEnergy = needed * factor;
-        targetState.resources.energy = Math.max(0, available - consumeEnergy);
-        net.energy -= consumeEnergy;
-        net.energyConsumed += consumeEnergy;
+    if (meta.id !== "gpu" && meta.id !== "cpu") {
+      if (!missingEnergyLink && energyUse && work > 0) {
+        const needed = energyUse * delta;
+        const available = targetState.resources.energy || 0;
+        const factor = Math.min(1, needed > 0 ? available / needed : 1);
+        if (factor <= 0) {
+          work = 0;
+        } else {
+          work *= factor;
+          const consumeEnergy = needed * factor;
+          targetState.resources.energy = Math.max(0, available - consumeEnergy);
+          net.energy -= consumeEnergy;
+          net.energyConsumed += consumeEnergy;
+        }
       }
     }
     if (!missingInputLink && meta.input) {
