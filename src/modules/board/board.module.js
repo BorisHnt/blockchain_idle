@@ -195,7 +195,7 @@ const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256];
 
 export function createBoardState() {
   return {
-    resources: { coin: 10_000_000_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
+    resources: { coin: 100_000_000_000_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -1090,6 +1090,7 @@ function renderNodes() {
                 <div class="gpu-main-action">
                   <button data-gpu-main-btn>GPU +1</button>
                   <div class="muted small" data-gpu-main-cost>Coût: 0 CXT</div>
+                  <div class="muted small" data-gpu-main-label></div>
                 </div>
               </div>
               <div class="gpu-upgrades">
@@ -1229,6 +1230,7 @@ function renderNodes() {
       gpuCellsCost: card.querySelector("[data-gpu-cells-cost]"),
       gpuMainBtn: card.querySelector("[data-gpu-main-btn]"),
       gpuMainCost: card.querySelector("[data-gpu-main-cost]"),
+      gpuMainLabel: card.querySelector("[data-gpu-main-label]"),
       gpuCards: card.querySelector("[data-gpu-cards]"),
       gpuChunkLabel: card.querySelector("[data-gpu-chunk-label]"),
       gpuChunkBtn: card.querySelector("[data-gpu-chunk-btn]"),
@@ -1480,6 +1482,12 @@ function updateNodeCard(id) {
     }
     if (ui.gpuMainCost) {
       ui.gpuMainCost.textContent = isFinite(mainCost) ? `Coût: ${formatNumber(mainCost)} CXT` : "Max";
+    }
+    if (ui.gpuMainLabel) {
+      const onCardIdx = Math.min(gs.cardCount, Math.ceil(gs.gpuCount / 32)) || 1;
+      const gpuOnCurrent = gs.gpuCount - (gs.cardCount - 1) * 32;
+      const currentDisplay = Math.min(32, Math.max(0, gpuOnCurrent));
+      ui.gpuMainLabel.textContent = `Carte ${onCardIdx} (${currentDisplay}/32) · ${gs.cardCount} carte(s) total`;
     }
 
     // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
@@ -2018,29 +2026,21 @@ function updatePowerCellsUI(ui) {
 function renderGpuGrid(container, gs) {
   if (!container) return;
   container.innerHTML = "";
-  const cards = gs.cardCount;
-  let remaining = gs.gpuCount;
   const maxPerCard = 32;
-  for (let i = 0; i < cards; i++) {
-    const row = document.createElement("div");
-    row.className = "gpu-row";
-    const grid = document.createElement("div");
-    grid.className = "gpu-grid-cells";
-    const countOnCard = Math.min(maxPerCard, remaining);
-    for (let c = 0; c < maxPerCard; c++) {
-      const cell = document.createElement("div");
-      cell.className = "gpu-cell";
-      if (c < countOnCard) cell.classList.add("filled");
-      grid.appendChild(cell);
-    }
-    remaining = Math.max(0, remaining - countOnCard);
-    const label = document.createElement("div");
-    label.className = "gpu-row-label";
-    label.textContent = `Carte ${i + 1} (${countOnCard}/${maxPerCard})`;
-    row.appendChild(grid);
-    row.appendChild(label);
-    container.appendChild(row);
+  const cards = Math.max(1, gs.cardCount);
+  let remaining = gs.gpuCount;
+  const cardIndex = Math.min(cards, Math.ceil(gs.gpuCount / maxPerCard) || 1) - 1;
+  const countOnCard = Math.min(maxPerCard, Math.max(0, remaining - cardIndex * maxPerCard));
+
+  const grid = document.createElement("div");
+  grid.className = "gpu-grid-cells";
+  for (let c = 0; c < maxPerCard; c++) {
+    const cell = document.createElement("div");
+    cell.className = "gpu-cell";
+    if (c < countOnCard) cell.classList.add("filled");
+    grid.appendChild(cell);
   }
+  container.appendChild(grid);
 }
 
 function flashHint(text) {

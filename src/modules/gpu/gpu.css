@@ -29,6 +29,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .gpu-card .gpu-row {
@@ -39,14 +41,14 @@
 
 .gpu-card .gpu-grid-cells {
   display: grid;
-  grid-template-columns: repeat(8, 10px);
-  grid-auto-rows: 10px;
-  gap: 3px;
+  grid-template-columns: repeat(8, 12px);
+  grid-auto-rows: 12px;
+  gap: 4px;
 }
 
 .gpu-card .gpu-cell {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 2px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 255, 128, 0.08);
