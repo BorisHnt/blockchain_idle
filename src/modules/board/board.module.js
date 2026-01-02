@@ -1064,7 +1064,13 @@ function renderNodes() {
           ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
           ${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}
         </div>
-        <div class="${meta.id === "energy" ? "flow energy-flow" : "flow"}">
+        <div class="${
+          meta.id === "energy"
+            ? "flow energy-flow"
+            : hasEnergyInput(meta) || hasOptInput(meta)
+            ? "flow flow-stacked"
+            : "flow"
+        }">
           ${
             meta.input
               ? `<span class="pill input">In: ${label(meta.input)}</span>`

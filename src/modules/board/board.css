@@ -321,6 +321,14 @@
   width: 100%;
 }
 
+#mod-board .flow.flow-stacked {
+  display: grid;
+  grid-auto-flow: row;
+  row-gap: 6px;
+  justify-items: start;
+  margin: 6px 0;
+}
+
 #mod-board .io-group.energy-io {
   column-gap: 6px;
 }
