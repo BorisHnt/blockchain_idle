@@ -21,6 +21,7 @@ const BOARD_STATE_VERSION = 4;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 const GPU_HASH_PER_MO = 0.23; // hash produits par Mo consommé au niveau 1 (hors scaling)
+const HASH_PER_MHZ_PER_CELL = 1000;
 const RAM_CHARGE_BASE = 10;
 const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
@@ -190,6 +191,7 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1.1;
 const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
+const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256];
 
 export function createBoardState() {
   return {
@@ -313,6 +315,14 @@ function mergeBoardState(saved) {
           : meta.id === "ram"
           ? 1
           : undefined,
+      // GPU extended state
+      freqLevel: meta.id === "gpu" ? Math.max(1, nodeState.freqLevel || nodeState.level || 1) : undefined,
+      cellsPerGpu: meta.id === "gpu" ? Math.max(1, nodeState.cellsPerGpu || 1) : undefined,
+      gpuCount: meta.id === "gpu" ? Math.max(1, nodeState.gpuCount || 1) : undefined,
+      purchasedGpuCount: meta.id === "gpu" ? Math.max(0, nodeState.purchasedGpuCount || 0) : undefined,
+      cardCount: meta.id === "gpu" ? Math.max(1, nodeState.cardCount || 1) : undefined,
+      chunkTier: meta.id === "gpu" ? Math.max(0, nodeState.chunkTier || 0) : undefined,
+      compressionLevel: meta.id === "gpu" ? Math.max(0, nodeState.compressionLevel || 0) : undefined,
     };
     if (meta.id === "ram" && merged.nodes[meta.id].level < 1) {
       merged.nodes[meta.id].level = 1;
@@ -395,6 +405,17 @@ function buildDefaultNodes() {
       capLevel: meta.id === "ram" ? 1 : undefined,
       fill: meta.id === "ram" ? 0 : undefined,
       discharging: meta.id === "ram" ? false : undefined,
+      ...(meta.id === "gpu"
+        ? {
+            freqLevel: 1,
+            cellsPerGpu: 1,
+            gpuCount: 1,
+            purchasedGpuCount: 0,
+            cardCount: 1,
+            chunkTier: 0,
+            compressionLevel: 0,
+          }
+        : {}),
     };
     return acc;
   }, {});
@@ -582,6 +603,97 @@ function getRate(meta, level) {
   return meta.baseRate * scale;
 }
 
+function gpuFreqMult(lvl) {
+  if (lvl <= 1) return 1.1;
+  if (lvl <= 15) {
+    const t = (lvl - 1) / 14;
+    return 1.1 + (1.075 - 1.1) * t;
+  }
+  if (lvl <= 25) {
+    const t = (lvl - 15) / 10;
+    return 1.075 + (1.05 - 1.075) * t;
+  }
+  return 1.05;
+}
+
+function gpuFreqMHz(baseMHz, level) {
+  let f = baseMHz;
+  for (let i = 1; i <= level; i++) {
+    f *= gpuFreqMult(i);
+  }
+  return f;
+}
+
+function gpuCompression(level) {
+  const a = 0.0797756811715;
+  const b = 0.7797105730328;
+  const c = 1.5017574721675;
+  const cap = 0.95;
+  if (level <= 0) return 0;
+  return Math.min(cap, cap * Math.pow(1 - Math.exp(-a * Math.pow(level, b)), c));
+}
+
+function gpuHashesPerChunk(chunkSizeKo, hashPerKo, compression) {
+  const base = chunkSizeKo * hashPerKo;
+  return Math.ceil(base * (1 + compression));
+}
+
+function getGpuFreqCost(currentLevel) {
+  const base = 100;
+  const step = 55;
+  return Math.round(base + step * Math.max(0, currentLevel - 1));
+}
+
+function getGpuCellsCost(nextCount) {
+  const base = 250;
+  const mult = 1.14;
+  return Math.round(base * Math.pow(mult, Math.max(0, nextCount - 1)));
+}
+
+function getGpuCountCost(globalIndex) {
+  const base = 5000;
+  const mult = 1.25;
+  return Math.round(base * Math.pow(mult, Math.max(0, globalIndex - 1)));
+}
+
+function getGpuCardCost(cardNumber) {
+  if (cardNumber === 2) return 1_000_000;
+  if (cardNumber === 3) return 50_000_000;
+  if (cardNumber === 4) return 1_000_000_000;
+  return Infinity;
+}
+
+function getGpuChunkCost(nextTier) {
+  const base = 250;
+  const mult = 1.35;
+  return Math.round(base * Math.pow(mult, Math.max(0, nextTier)));
+}
+
+function getGpuCompressionCost(nextLevel) {
+  const base = 600;
+  const mult = 1.18;
+  return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
+}
+
+function getGpuChunkSize(tier) {
+  if (tier < 0) return GPU_CHUNK_SIZES[0];
+  if (tier >= GPU_CHUNK_SIZES.length) return GPU_CHUNK_SIZES[GPU_CHUNK_SIZES.length - 1];
+  return GPU_CHUNK_SIZES[tier];
+}
+
+function getGpuState(sourceState = state) {
+  const gpu = sourceState?.nodes?.gpu || {};
+  return {
+    freqLevel: Math.max(1, gpu.freqLevel || gpu.level || 1),
+    cellsPerGpu: Math.max(1, gpu.cellsPerGpu || 1),
+    gpuCount: Math.max(1, gpu.gpuCount || 1),
+    purchasedGpuCount: Math.max(0, gpu.purchasedGpuCount || 0),
+    cardCount: Math.max(1, gpu.cardCount || 1),
+    chunkTier: Math.max(0, gpu.chunkTier || 0),
+    compressionLevel: Math.max(0, gpu.compressionLevel || 0),
+  };
+}
+
 function hasInputConnection(id) {
   return state.connections.some((c) => c.to === id && !isEnergyConnection(c));
 }
@@ -709,6 +821,127 @@ function upgradeRamFrequency() {
   syncStore();
 }
 
+function upgradeGpuFreq() {
+  const gpu = state.nodes.gpu || {};
+  const level = gpu.freqLevel || 1;
+  const cost = getGpuFreqCost(level);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.gpu = { ...gpu, freqLevel: level + 1, unlocked: true };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeGpuCells() {
+  const gpu = state.nodes.gpu || {};
+  const nextCount = (gpu.cellsPerGpu || 1) + 1;
+  const cost = getGpuCellsCost(nextCount);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.gpu = { ...gpu, cellsPerGpu: nextCount, unlocked: true };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeGpuCount() {
+  const gpu = state.nodes.gpu || {};
+  const totalGpus = gpu.gpuCount || 1;
+  const next = totalGpus + 1;
+  const purchased = gpu.purchasedGpuCount || 0;
+  const cost = getGpuCountCost(purchased + 1);
+  const cardCount = gpu.cardCount || 1;
+  const maxPerCard = 32;
+  if (next > cardCount * maxPerCard) {
+    flashHint("Cartes pleines (32 GPU max par carte)");
+    return;
+  }
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.gpu = {
+    ...gpu,
+    gpuCount: next,
+    purchasedGpuCount: purchased + 1,
+    unlocked: true,
+  };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeGpuCard() {
+  const gpu = state.nodes.gpu || {};
+  const cardCount = gpu.cardCount || 1;
+  const nextCard = cardCount + 1;
+  if (nextCard > 4) {
+    flashHint("Cartes max atteintes");
+    return;
+  }
+  const cost = getGpuCardCost(nextCard);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  // bonus GPU offert (1 GPU avec 1 cellule)
+  const bonusGpu = (gpu.gpuCount || 1) + 1;
+  state.nodes.gpu = {
+    ...gpu,
+    cardCount: nextCard,
+    gpuCount: bonusGpu,
+    unlocked: true,
+  };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeGpuChunk() {
+  const gpu = state.nodes.gpu || {};
+  const tier = gpu.chunkTier || 0;
+  const nextTier = tier + 1;
+  if (nextTier >= GPU_CHUNK_SIZES.length) {
+    flashHint("Chunk max");
+    return;
+  }
+  const cost = getGpuChunkCost(nextTier);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.gpu = { ...gpu, chunkTier: nextTier, unlocked: true };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeGpuCompression() {
+  const gpu = state.nodes.gpu || {};
+  const level = gpu.compressionLevel || 0;
+  const nextLevel = level + 1;
+  const cost = getGpuCompressionCost(nextLevel);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.gpu = { ...gpu, compressionLevel: nextLevel, unlocked: true };
+  updateNodeCard("gpu");
+  refreshWires();
+  syncStore();
+}
+
 function renderNodes() {
   bindings = {};
   nodesContainer.innerHTML = "";
@@ -809,6 +1042,15 @@ function renderNodes() {
         }
         ${
           meta.id === "gpu"
+            ? `<div class="gpu-stats">
+                <div class="node-row small"><span>Chunk</span><span data-gpu-chunk>0 Ko</span></div>
+                <div class="node-row small"><span>Compression</span><span data-gpu-comp>0%</span></div>
+                <div class="node-row small"><span>GPUs</span><span data-gpu-count>0</span></div>
+              </div>`
+            : ""
+        }
+        ${
+          meta.id === "gpu"
             ? `<div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
                <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>`
             : ""
@@ -832,6 +1074,42 @@ function renderNodes() {
                   <div class="node-row"><span>Fréquence</span><span data-ram-freq>0</span></div>
                   <button data-ram-freq-btn>Fréquence +1</button>
                   <div class="muted small" data-ram-freq-cost>Coût: 0 CXT</div>
+                </div>
+              </div>`
+            : ""
+        }
+        ${
+          meta.id === "gpu"
+            ? `<div class="gpu-upgrades">
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Fréquence</span><span data-gpu-freq>0</span></div>
+                  <button data-gpu-freq-btn>Fréquence +1</button>
+                  <div class="muted small" data-gpu-freq-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Cellules/GPU</span><span data-gpu-cells>0</span></div>
+                  <button data-gpu-cells-btn>Cellule +1</button>
+                  <div class="muted small" data-gpu-cells-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>GPUs</span><span data-gpu-gpus>0</span></div>
+                  <button data-gpu-gpus-btn>GPU +1</button>
+                  <div class="muted small" data-gpu-gpus-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Cartes</span><span data-gpu-cards>0</span></div>
+                  <button data-gpu-cards-btn>Carte +1</button>
+                  <div class="muted small" data-gpu-cards-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Chunk size</span><span data-gpu-chunk-label>0</span></div>
+                  <button data-gpu-chunk-btn>Chunk +1</button>
+                  <div class="muted small" data-gpu-chunk-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Compression</span><span data-gpu-comp-label>0%</span></div>
+                  <button data-gpu-comp-btn>Compression +1</button>
+                  <div class="muted small" data-gpu-comp-cost>Coût: 0 CXT</div>
                 </div>
               </div>`
             : ""
@@ -869,7 +1147,7 @@ function renderNodes() {
             : ""
         }
         ${
-          meta.id === "collector" || meta.id === "ram"
+          meta.id === "collector" || meta.id === "ram" || meta.id === "gpu"
             ? `<div class="actions" style="display:none;"></div>`
             : `<div class="actions">
                  <button data-unlock class="ghost">Débloquer</button>
@@ -888,10 +1166,27 @@ function renderNodes() {
     if (coreBtn) {
       coreBtn.addEventListener("click", () => addCore(meta.id));
     }
+    if (meta.id === "ram") {
+      // Pas de bouton d'amélioration générique sur la RAM : on enlève complètement le bloc actions.
+      const actions = card.querySelector(".actions");
+      actions?.remove();
+    }
     const ramCapBtn = card.querySelector("[data-ram-cap-btn]");
     const ramFreqBtn = card.querySelector("[data-ram-freq-btn]");
     ramCapBtn?.addEventListener("click", () => upgradeRamCapacity());
     ramFreqBtn?.addEventListener("click", () => handleUpgrade("ram"));
+    const gpuFreqBtn = card.querySelector("[data-gpu-freq-btn]");
+    const gpuCellsBtn = card.querySelector("[data-gpu-cells-btn]");
+    const gpuGpusBtn = card.querySelector("[data-gpu-gpus-btn]");
+    const gpuCardsBtn = card.querySelector("[data-gpu-cards-btn]");
+    const gpuChunkBtn = card.querySelector("[data-gpu-chunk-btn]");
+    const gpuCompBtn = card.querySelector("[data-gpu-comp-btn]");
+    gpuFreqBtn?.addEventListener("click", () => upgradeGpuFreq());
+    gpuCellsBtn?.addEventListener("click", () => upgradeGpuCells());
+    gpuGpusBtn?.addEventListener("click", () => upgradeGpuCount());
+    gpuCardsBtn?.addEventListener("click", () => upgradeGpuCard());
+    gpuChunkBtn?.addEventListener("click", () => upgradeGpuChunk());
+    gpuCompBtn?.addEventListener("click", () => upgradeGpuCompression());
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
       if (!e.target.closest(".drag-handle")) return;
@@ -923,6 +1218,27 @@ function renderNodes() {
       ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
       ramChargeRate: card.querySelector("[data-ram-charge]"),
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
+      gpuChunk: card.querySelector("[data-gpu-chunk]"),
+      gpuComp: card.querySelector("[data-gpu-comp]"),
+      gpuCount: card.querySelector("[data-gpu-count]"),
+      gpuFreq: card.querySelector("[data-gpu-freq]"),
+      gpuFreqBtn: card.querySelector("[data-gpu-freq-btn]"),
+      gpuFreqCost: card.querySelector("[data-gpu-freq-cost]"),
+      gpuCells: card.querySelector("[data-gpu-cells]"),
+      gpuCellsBtn: card.querySelector("[data-gpu-cells-btn]"),
+      gpuCellsCost: card.querySelector("[data-gpu-cells-cost]"),
+      gpuGpus: card.querySelector("[data-gpu-gpus]"),
+      gpuGpusBtn: card.querySelector("[data-gpu-gpus-btn]"),
+      gpuGpusCost: card.querySelector("[data-gpu-gpus-cost]"),
+      gpuCards: card.querySelector("[data-gpu-cards]"),
+      gpuCardsBtn: card.querySelector("[data-gpu-cards-btn]"),
+      gpuCardsCost: card.querySelector("[data-gpu-cards-cost]"),
+      gpuChunkLabel: card.querySelector("[data-gpu-chunk-label]"),
+      gpuChunkBtn: card.querySelector("[data-gpu-chunk-btn]"),
+      gpuChunkCost: card.querySelector("[data-gpu-chunk-cost]"),
+      gpuCompLabel: card.querySelector("[data-gpu-comp-label]"),
+      gpuCompBtn: card.querySelector("[data-gpu-comp-btn]"),
+      gpuCompCost: card.querySelector("[data-gpu-comp-cost]"),
       gpuData: card.querySelector("[data-gpu-data]"),
       gpuHash: card.querySelector("[data-gpu-hash]"),
       cpuHash: card.querySelector("[data-cpu-hash]"),
@@ -1052,6 +1368,13 @@ function updateNodeCard(id) {
     ui.rateEl.textContent = `${rate}/s`;
   }
 
+  if (meta.id === "gpu") {
+    const metrics = nodeMetrics[id] || { actual: 0 };
+    const deltaSec = lastDelta || 1;
+    const hashPerSec = metrics.actual / deltaSec;
+    ui.rateEl.textContent = `${formatRate(hashPerSec)}/s`;
+  }
+
   if (meta.id === "validator") {
     if (ui.valRate) {
       ui.valRate.textContent = level > 0 ? formatBandwidthRate(rawRate) : "0 Mo/s";
@@ -1096,9 +1419,17 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const dataPerSec = GPU_HASH_PER_MO > 0 ? hashPerSec / GPU_HASH_PER_MO : 0;
+    const gpuState = getGpuState();
+    const chunkSizeKo = getGpuChunkSize(gpuState.chunkTier);
+    const hashesPerChunk = gpuHashesPerChunk(chunkSizeKo, 1, gpuCompression(gpuState.compressionLevel));
+    const chunkSizeMo = chunkSizeKo / 1024;
+    const chunksPerSec = hashesPerChunk > 0 ? hashPerSec / hashesPerChunk : 0;
+    const dataPerSec = chunksPerSec * chunkSizeMo;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(hashPerSec)}/s`;
+    if (ui.gpuChunk) ui.gpuChunk.textContent = `${chunkSizeKo} Ko`;
+    if (ui.gpuComp) ui.gpuComp.textContent = `${Math.round(gpuCompression(gpuState.compressionLevel) * 100)}%`;
+    if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
@@ -1108,6 +1439,44 @@ function updateNodeCard(id) {
     const coinPerSec = hashPerSec; // 1 hash => 1 coin
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
+  }
+
+  if (meta.id === "gpu") {
+    const gs = getGpuState();
+    const chunkSizeKo = getGpuChunkSize(gs.chunkTier);
+    const comp = gpuCompression(gs.compressionLevel);
+    const freqMHz = gpuFreqMHz(1, gs.freqLevel);
+    if (ui.gpuFreq) ui.gpuFreq.textContent = `${freqMHz.toFixed(2)} MHz`;
+    if (ui.gpuCells) ui.gpuCells.textContent = `${gs.cellsPerGpu}`;
+    if (ui.gpuGpus) ui.gpuGpus.textContent = `${gs.gpuCount} / ${gs.cardCount * 32}`;
+    if (ui.gpuCards) ui.gpuCards.textContent = `${gs.cardCount} / 4`;
+    if (ui.gpuChunkLabel) ui.gpuChunkLabel.textContent = `${chunkSizeKo} Ko`;
+    if (ui.gpuCompLabel) ui.gpuCompLabel.textContent = `${Math.round(comp * 100)}%`;
+
+    const freqCost = getGpuFreqCost(gs.freqLevel);
+    const cellsCost = getGpuCellsCost(gs.cellsPerGpu + 1);
+    const gpuCost = getGpuCountCost((gs.purchasedGpuCount || 0) + 1);
+    const nextCard = gs.cardCount + 1;
+    const cardCost = getGpuCardCost(nextCard);
+    const nextTier = gs.chunkTier + 1;
+    const chunkCost = getGpuChunkCost(nextTier);
+    const compCost = getGpuCompressionCost(gs.compressionLevel + 1);
+    if (ui.gpuFreqCost) ui.gpuFreqCost.textContent = `Coût: ${formatNumber(freqCost)} CXT`;
+    if (ui.gpuCellsCost) ui.gpuCellsCost.textContent = `Coût: ${formatNumber(cellsCost)} CXT`;
+    if (ui.gpuGpusCost) ui.gpuGpusCost.textContent = gs.gpuCount >= gs.cardCount * 32 ? "Max" : `Coût: ${formatNumber(gpuCost)} CXT`;
+    if (ui.gpuCardsCost) ui.gpuCardsCost.textContent = nextCard > 4 ? "Max" : `Coût: ${formatNumber(cardCost)} CXT`;
+    if (ui.gpuChunkCost) ui.gpuChunkCost.textContent = nextTier >= GPU_CHUNK_SIZES.length ? "Max" : `Coût: ${formatNumber(chunkCost)} CXT`;
+    if (ui.gpuCompCost) ui.gpuCompCost.textContent = `Coût: ${formatNumber(compCost)} CXT`;
+
+    if (ui.gpuFreqBtn) ui.gpuFreqBtn.disabled = state.resources.coin < freqCost;
+    if (ui.gpuCellsBtn) ui.gpuCellsBtn.disabled = state.resources.coin < cellsCost;
+    if (ui.gpuGpusBtn) ui.gpuGpusBtn.disabled = gs.gpuCount >= gs.cardCount * 32 || state.resources.coin < gpuCost;
+    if (ui.gpuCardsBtn) ui.gpuCardsBtn.disabled = nextCard > 4 || state.resources.coin < cardCost;
+    if (ui.gpuChunkBtn) ui.gpuChunkBtn.disabled = nextTier >= GPU_CHUNK_SIZES.length || state.resources.coin < chunkCost;
+    if (ui.gpuCompBtn) ui.gpuCompBtn.disabled = state.resources.coin < compCost;
+
+    // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
+    ui.costEl.textContent = `${formatNumber(freqCost)} CXT`;
   }
 
   if (meta.coresMax && ui.coresContainer) {
@@ -1248,16 +1617,27 @@ function simulateProduction(delta, targetState, options = {}) {
           if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
           return;
         }
+        const gpuState = getGpuState(targetState);
+        const chunkSizeKo = getGpuChunkSize(gpuState.chunkTier);
+        const chunkSizeMo = chunkSizeKo / 1024;
+        const comp = gpuCompression(gpuState.compressionLevel);
+        const hashesPerChunk = gpuHashesPerChunk(chunkSizeKo, 1, comp);
+        const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
+        const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount;
+        const desiredChunksPerSec = hashesPerChunk > 0 ? hashCapPerSec / hashesPerChunk : 0;
+        const desiredMoPerSec = desiredChunksPerSec * chunkSizeMo;
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
-        const potentialMo = dischargeRate * delta;
         const energyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
-        const cappedMo = potentialMo * energyFactor;
-        const dataUse = Math.min(fill, cappedMo);
-        const energyConsume = energyNeeded * (cappedMo > 0 ? dataUse / cappedMo : 0);
-        const hashProduced = dataUse * GPU_HASH_PER_MO;
-        let nextFill = Math.max(0, fill - dataUse);
+        const desiredMoEnergy = desiredMoPerSec * delta * energyFactor;
+        const maxMo = Math.min(fill, dischargeRate * delta, desiredMoEnergy);
+        const chunksProcessed = chunkSizeMo > 0 ? maxMo / chunkSizeMo : 0;
+        const hashProduced = chunksProcessed * hashesPerChunk;
+        const energyConsume =
+          energyNeeded *
+          (desiredMoPerSec > 0 ? Math.min(1, maxMo / Math.max(desiredMoPerSec * delta, 0.0001)) : 0);
+        let nextFill = Math.max(0, fill - maxMo);
         if (nextFill <= RAM_EPS) {
           nextFill = 0;
           discharging = false;
@@ -1268,7 +1648,7 @@ function simulateProduction(delta, targetState, options = {}) {
         net.energyConsumed += energyConsume;
         targetState.resources.hash = (targetState.resources.hash || 0) + hashProduced;
         net.hash += hashProduced;
-        if (metrics) metrics[meta.id] = { potential: potentialMo * GPU_HASH_PER_MO, actual: hashProduced };
+        if (metrics) metrics[meta.id] = { potential: hashCapPerSec * delta, actual: hashProduced };
         return;
       }
       if (meta.id === "cpu") {
