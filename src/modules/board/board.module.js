@@ -1188,6 +1188,10 @@ function simulateProduction(delta, targetState, options = {}) {
         const ramState = targetState.nodes.ram || {};
         const cap = getRamCapacity(ramState.capLevel || 1);
         const fill = clamp(ramState.fill || 0, 0, cap);
+        if (fill < cap) {
+          if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
+          return;
+        }
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
         const potentialMo = dischargeRate * delta;
         const energyNeeded = getEnergyUse(meta, level) * delta;
