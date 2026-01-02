@@ -798,7 +798,15 @@ function renderNodes() {
               </div>`
             : ""
         }
-        <div class="node-row" ${meta.id === "collector" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
+        ${
+          meta.id === "ram"
+            ? `<div class="ram-stats">
+                <div class="node-row"><span>Charge</span><span data-ram-charge>0</span></div>
+                <div class="node-row"><span>Décharge</span><span data-ram-discharge>0</span></div>
+              </div>`
+            : ""
+        }
+        <div class="node-row" ${meta.id === "collector" || meta.id === "ram" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.id === "ram"
             ? `<div class="ram-upgrades">
@@ -849,7 +857,7 @@ function renderNodes() {
         }
         <div class="actions">
           <button data-unlock class="ghost" ${meta.id === "collector" ? 'style="display:none;"' : ""}>Débloquer</button>
-          <button data-upgrade ${meta.id === "collector" ? 'style="display:none;"' : ""}>Améliorer</button>
+          <button data-upgrade ${meta.id === "collector" || meta.id === "ram" ? 'style="display:none;"' : ""}>Améliorer</button>
         </div>
         <div class="node-row muted"><span>État</span><span data-status>Actif</span></div>
       </div>
@@ -896,6 +904,8 @@ function renderNodes() {
       ramFill: card.querySelector("[data-ram-fill]"),
       ramFillText: card.querySelector("[data-ram-fill-text]"),
       ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
+      ramChargeRate: card.querySelector("[data-ram-charge]"),
+      ramDischargeRate: card.querySelector("[data-ram-discharge]"),
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
       energyDot,
@@ -996,13 +1006,8 @@ function updateNodeCard(id) {
   }
   if (meta.id === "energy" && isEnergyOff) {
     ui.upgradeBtn.textContent = "ALLUMER";
-  } else if (meta.id === "ram") {
-    ui.upgradeBtn.textContent = "Fréquence +1";
   } else {
     ui.upgradeBtn.textContent = "Améliorer";
-  }
-  if (meta.id === "ram") {
-    ui.upgradeBtn.textContent = "Fréquence +1";
   }
 
   if (!unlocked && !isEnergyOff) {
@@ -1060,7 +1065,11 @@ function updateNodeCard(id) {
     if (ui.ramFreqBtn) {
       ui.ramFreqBtn.disabled = !unlocked || state.resources.coin < getRamFreqCost(level);
     }
-    // On affiche le coût principal comme le coût fréquence pour cohérence.
+    const chargeRate = getRamChargeRate(level) * ((meta.efficiency || 1));
+    const dischargeRate = getRamDischargeRate(level) * ((meta.efficiency || 1));
+    if (ui.ramChargeRate) ui.ramChargeRate.textContent = formatBandwidthRate(chargeRate);
+    if (ui.ramDischargeRate) ui.ramDischargeRate.textContent = formatBandwidthRate(dischargeRate);
+    // On affiche le coût principal comme le coût fréquence pour cohérence (même si la ligne est masquée).
     ui.costEl.textContent = `${formatNumber(getRamFreqCost(level))} CXT`;
     if (ui.ramFill) {
       ui.ramFill.style.width = `${Math.min(100, pct)}%`;

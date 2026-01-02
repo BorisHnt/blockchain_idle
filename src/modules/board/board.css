@@ -606,6 +606,14 @@
   gap: 6px;
 }
 
+#mod-board .ram-upgrade .muted.small {
+  font-size: 12px;
+}
+
+#mod-board .ram-stats {
+  margin: 6px 0 2px;
+}
+
 #mod-board .node-level {
   padding: 4px 8px;
   border-radius: 8px;
