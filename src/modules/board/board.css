@@ -135,6 +135,11 @@
   color: #ffd166;
 }
 
+#mod-board .pill.opt {
+  background: rgba(122, 240, 140, 0.18);
+  color: #7af08c;
+}
+
 #mod-board .energy-hero {
   display: flex;
   flex-direction: column;
@@ -385,6 +390,12 @@
   background: rgba(255, 209, 102, 0.3);
   border-color: rgba(255, 209, 102, 0.7);
   box-shadow: 0 0 10px rgba(255, 209, 102, 0.35);
+}
+
+#mod-board .io-dot.opt {
+  background: rgba(122, 240, 140, 0.3);
+  border-color: rgba(122, 240, 140, 0.7);
+  box-shadow: 0 0 10px rgba(122, 240, 140, 0.35);
 }
 
 #mod-board .io-dot.hover {
