@@ -24,6 +24,15 @@ export function createCablage({ getNodeMeta, hasInputAnchor, hasOutputAnchor, ha
         flashHint("Sortie non énergie");
         return state;
       }
+    } else if (targetType === "gpuopt") {
+      if (toMeta.optInput !== "gpuopt") {
+        flashHint("Pas d'entrée GPU Opt");
+        return state;
+      }
+      if (fromMeta.output !== "gpuopt") {
+        flashHint("Sortie non GPU Opt");
+        return state;
+      }
     } else {
       if (!hasInputAnchor(toMeta)) {
         flashHint("Ce module n'a pas d'entrée");
@@ -39,7 +48,7 @@ export function createCablage({ getNodeMeta, hasInputAnchor, hasOutputAnchor, ha
       flashHint("Déjà connecté");
       return state;
     }
-    state.connections = [...state.connections, { from: fromId, to: toId, kind: isEnergy ? "energy" : "data" }];
+    state.connections = [...state.connections, { from: fromId, to: toId, kind: targetType }];
     return state;
   };
 

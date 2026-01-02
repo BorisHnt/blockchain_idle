@@ -80,6 +80,7 @@ const NODES = [
     name: "GPU Farm",
     caption: "Data → Hash",
     input: "data",
+    optInput: "gpuopt",
     output: "hash",
     energyUse: 120,
     baseRate: 2.3,
@@ -159,6 +160,19 @@ const NODES = [
     hideOutputAnchor: true,
     x: 1460,
     y: 280,
+    startUnlocked: true,
+    startLevel: 1,
+  },
+  {
+    id: "gpuopt",
+    name: "GPU Optimizer",
+    caption: "Optimise le GPU (chunk/compression)",
+    type: "source",
+    output: "gpuopt",
+    baseRate: 0,
+    baseCost: 500,
+    x: 200,
+    y: 220,
     startUnlocked: true,
     startLevel: 1,
   },
@@ -342,6 +356,8 @@ function mergeBoardState(saved) {
       hasOutputAnchor(from) &&
       (isEnergyConnection(c)
         ? hasEnergyInput(to) && from.output === "energy"
+        : c.kind === "gpuopt"
+        ? hasOptInput(to) && from.output === "gpuopt"
         : hasInputAnchor(to) && from.output === to.input)
     );
   });
@@ -466,6 +482,10 @@ function hasOutputAnchor(meta) {
 
 function hasEnergyInput(meta) {
   return !!meta.energyUse && meta.id !== "energy";
+}
+
+function hasOptInput(meta) {
+  return meta.optInput === "gpuopt";
 }
 
 function hasUtilGauge(meta) {
@@ -983,6 +1003,7 @@ function renderNodes() {
         <div class="io-column io-column-left">
           ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}
           ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
+          ${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}
         </div>
         <div class="${meta.id === "energy" ? "flow energy-flow" : "flow"}">
           ${
@@ -993,6 +1014,11 @@ function renderNodes() {
               : `<span class="pill source">Source</span>`
           }
           ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+          ${
+            hasOptInput(meta)
+              ? `<span class="pill opt">In: GPU Opt</span>`
+              : ""
+          }
           ${
             hasOutputAnchor(meta)
               ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${
@@ -1189,7 +1215,7 @@ function renderNodes() {
       if (!e.target.closest(".drag-handle")) return;
       startDrag(e, meta.id);
     });
-    const { outputDot, inputDot, energyDot } = bindIoDots(card, meta, {
+    const { outputDot, inputDot, optDot, energyDot } = bindIoDots(card, meta, {
       onStartLink: (evt, nodeId, outType) => startLink(evt, nodeId, outType),
       onShowMenu: (evt, payload) => ioMenu?.show(evt, payload),
     });
@@ -1240,6 +1266,7 @@ function renderNodes() {
       cpuCoin: card.querySelector("[data-cpu-coin]"),
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
+      optDot,
       energyDot,
       outputDot,
       energyLogo: card.querySelector("[data-energy-logo]"),
@@ -1769,7 +1796,8 @@ function startLink(e, fromId, explicitKind) {
   const meta = getNodeMeta(fromId);
   if (!meta || !hasOutputAnchor(meta)) return;
   const outType = explicitKind || e.currentTarget?.dataset?.outType || meta.output || "data";
-  linking = { fromId, kind: outType === "energy" ? "energy" : "data" };
+  const kind = outType === "energy" ? "energy" : outType === "gpuopt" ? "gpuopt" : "data";
+  linking = { fromId, kind };
   const rect = playfield.getBoundingClientRect();
   const toPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
   wires.setPreview({ fromId, toPoint, kind: linking.kind });
@@ -1793,7 +1821,14 @@ function endLink(e) {
     const toId = toCard?.dataset.node;
     const fromMeta = getNodeMeta(linking.fromId);
     const prefersEnergy = fromMeta?.output === "energy" || linking.kind === "energy";
-    const kind = targetDot.dataset.io === "energy" ? "energy" : prefersEnergy ? "energy" : "data";
+    const kind =
+      targetDot.dataset.io === "energy"
+        ? "energy"
+        : targetDot.dataset.io === "opt" || linking.kind === "gpuopt"
+        ? "gpuopt"
+        : prefersEnergy
+        ? "energy"
+        : "data";
     tryCreateConnection(linking.fromId, toId, kind);
   }
   linking = null;
@@ -1807,6 +1842,8 @@ function label(resource) {
   switch (resource) {
     case "bandwidth":
       return "Bandwidth";
+    case "gpuopt":
+      return "GPU Opt";
     case "data":
       return "Data";
     case "coin":

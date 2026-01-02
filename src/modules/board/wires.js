@@ -4,6 +4,7 @@ export function createWires({ playfield, wiresSvg, getNodeMeta, isUnlocked, getL
   let lastBindings = {};
 
   const isEnergyConnection = (conn) => conn.kind === "energy";
+  const isOptConnection = (conn) => conn.kind === "gpuopt";
 
   const render = (connections, bindings) => {
     lastConnections = connections;
@@ -21,12 +22,14 @@ export function createWires({ playfield, wiresSvg, getNodeMeta, isUnlocked, getL
       const fromMeta = getNodeMeta(conn.from);
       const toMeta = getNodeMeta(conn.to);
       const isEnergy = isEnergyConnection(conn);
+      const isOpt = isOptConnection(conn);
       if (!fromMeta?.output) return;
-      if (isEnergy ? !toMeta?.energyUse : !toMeta?.input) return;
+      if (isEnergy ? !toMeta?.energyUse : isOpt ? !toMeta?.optInput : !toMeta?.input) return;
 
       const start = getDotCenter(from.outputDot);
       const targetEnergyDot = to.energyDot || to.inputDot;
-      const end = isEnergy ? getDotCenter(targetEnergyDot) : getDotCenter(to.inputDot);
+      const targetOptDot = to.optDot || to.inputDot;
+      const end = isEnergy ? getDotCenter(targetEnergyDot) : isOpt ? getDotCenter(targetOptDot) : getDotCenter(to.inputDot);
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       const midX = (start.x + end.x) / 2;
       const d = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
@@ -35,7 +38,7 @@ export function createWires({ playfield, wiresSvg, getNodeMeta, isUnlocked, getL
       path.setAttribute("stroke-width", "3");
       path.setAttribute("stroke-linecap", "round");
       const active = isUnlocked(conn.from) && getLevel(conn.from) > 0;
-      const color = isEnergy ? "#ffd166" : "#4dd4ff";
+      const color = isEnergy ? "#ffd166" : isOpt ? "#6fdd5f" : "#4dd4ff";
       path.setAttribute("stroke", active ? color : "rgba(255,255,255,0.15)");
       path.setAttribute("opacity", active ? "0.9" : "0.4");
       wiresSvg.appendChild(path);
@@ -53,7 +56,10 @@ export function createWires({ playfield, wiresSvg, getNodeMeta, isUnlocked, getL
         path.setAttribute("fill", "none");
         path.setAttribute("stroke-width", "2");
         path.setAttribute("stroke-dasharray", "6 4");
-        path.setAttribute("stroke", kind === "energy" ? "rgba(255,209,102,0.85)" : "rgba(77,212,255,0.8)");
+        path.setAttribute(
+          "stroke",
+          kind === "energy" ? "rgba(255,209,102,0.85)" : kind === "gpuopt" ? "rgba(111,221,95,0.85)" : "rgba(77,212,255,0.8)"
+        );
         path.setAttribute("opacity", "0.8");
         wiresSvg.appendChild(path);
       }

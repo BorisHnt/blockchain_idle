@@ -77,12 +77,12 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: 140px;
+  width: 120px;
   align-items: flex-start;
 }
 
 .gpu-card .gpu-main-action button {
-  width: 114px;
+  width: 120px;
   white-space: normal;
   line-height: 1.2;
 }

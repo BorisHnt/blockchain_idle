@@ -1,6 +1,7 @@
 export function bindIoDots(card, meta, handlers) {
   const outputDot = card.querySelector(".io-dot.output");
   const inputDot = card.querySelector(".io-dot.input");
+  const optDot = card.querySelector(".io-dot.opt");
   const energyDot = card.querySelector(".io-dot.energy:not(.output)");
 
   if (outputDot) {
@@ -8,6 +9,18 @@ export function bindIoDots(card, meta, handlers) {
     outputDot.addEventListener("contextmenu", (e) =>
       handlers.onShowMenu?.(e, { nodeId: meta.id, kind: meta.output, role: "output" })
     );
+  }
+  if (optDot) {
+    optDot.addEventListener("pointerenter", () => optDot.classList.add("hover"));
+    optDot.addEventListener("pointerleave", () => optDot.classList.remove("hover"));
+    optDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlers.onShowMenu?.(e, { nodeId: meta.id, kind: "gpuopt", role: "input" });
+    });
+    optDot.addEventListener("contextmenu", (e) => {
+      e.stopPropagation();
+      handlers.onShowMenu?.(e, { nodeId: meta.id, kind: "gpuopt", role: "input" });
+    });
   }
   if (inputDot) {
     inputDot.addEventListener("pointerenter", () => inputDot.classList.add("hover"));
@@ -32,7 +45,7 @@ export function bindIoDots(card, meta, handlers) {
     );
   }
 
-  return { outputDot, inputDot, energyDot };
+  return { outputDot, inputDot, optDot, energyDot };
 }
 
 export function createIoContextMenu({ playfield, cablage, getNodeMeta, getConnections, onDisconnect }) {
