@@ -1087,8 +1087,8 @@ function renderNodes() {
                 <div class="gpu-main-action">
                   <button data-gpu-main-btn>GPU +1</button>
                 </div>
-                <div class="muted small" data-gpu-main-label></div>
               </div>
+              <div class="muted small gpu-main-label" data-gpu-main-label></div>
               <div class="gpu-upgrades">
                 <div class="ram-upgrade">
                   <div class="node-row"><span>Fréquence</span><span data-gpu-freq>0</span></div>
