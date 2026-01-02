@@ -619,8 +619,8 @@ function unlockNode(id) {
       return;
     }
     const { coin = 0, skill = 0 } = meta.unlock;
-    state.resources.coin -= coin;
-    state.resources.skill -= skill;
+  state.resources.coin -= coin;
+  state.resources.skill -= skill;
   }
   state.nodes[id] = { ...state.nodes[id], unlocked: true, level: Math.max(1, getLevel(id)) };
   updateNodeCard(id);
@@ -845,8 +845,12 @@ function renderNodes() {
             : ""
         }
         <div class="actions">
-          <button data-unlock class="ghost">Débloquer</button>
-          <button data-upgrade>Améliorer</button>
+          ${
+            meta.id === "collector"
+              ? ""
+              : `<button data-unlock class="ghost">Débloquer</button>
+                 <button data-upgrade>Améliorer</button>`
+          }
         </div>
         <div class="node-row muted"><span>État</span><span data-status>Actif</span></div>
       </div>
@@ -982,10 +986,15 @@ function updateNodeCard(id) {
   ui.levelEl.textContent = level;
   const isEnergyOff = meta.id === "energy" && level === 0;
   ui.card.classList.toggle("locked", !unlocked && !isEnergyOff);
-  ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
-  ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
-  ui.unlockBtn.disabled = unlocked || isEnergyOff || !canUnlock(meta);
-  ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
+  if (meta.id !== "collector") {
+    ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+    ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
+    ui.unlockBtn.disabled = unlocked || isEnergyOff || !canUnlock(meta);
+    ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
+  } else {
+    ui.unlockBtn.style.display = "none";
+    ui.upgradeBtn.style.display = "none";
+  }
   if (meta.id === "energy" && isEnergyOff) {
     ui.upgradeBtn.textContent = "ALLUMER";
   } else if (meta.id === "ram") {
@@ -1192,7 +1201,7 @@ function simulateProduction(delta, targetState, options = {}) {
         const cap = getRamCapacity(ramState.capLevel || 1);
         const fill = clamp(ramState.fill || 0, 0, cap);
         let discharging = typeof ramState.discharging === "boolean" ? ramState.discharging : false;
-        if (!discharging && fill >= cap) {
+        if (!discharging && fill >= cap - RAM_EPS) {
           discharging = true;
         }
         if (!discharging) {
