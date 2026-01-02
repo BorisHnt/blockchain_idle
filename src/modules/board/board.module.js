@@ -54,8 +54,8 @@ const NODES = [
   {
     id: "gpu",
     name: "GPU Farm",
-    caption: "Compute → Hash",
-    input: "compute",
+    caption: "Data → Hash",
+    input: "data",
     output: "hash",
     energyUse: 180,
     baseRate: 2.3,
@@ -86,17 +86,17 @@ const NODES = [
   {
     id: "ram",
     name: "RAM Cache",
-    caption: "Précharge les blocs, boost le hash",
+    caption: "Précharge le compute en data",
     input: "compute",
-    output: "hash",
+    output: "data",
     efficiency: 1.25,
     energyUse: 90,
     baseRate: 1.4,
     baseCost: 200,
-    unlock: { coin: 220 },
     x: 420,
     y: 400,
-    startLevel: 0,
+    startLevel: 1,
+    startUnlocked: true,
   },
   {
     id: "optimizer",
@@ -165,7 +165,7 @@ let offlineGainEl;
 
 let state;
 let bindings = {};
-let resourceRates = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
+let resourceRates = { coin: 0, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 };
 let drag = null;
 let linking = null;
 let accumulator = 0;
@@ -181,7 +181,7 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 
 export function createBoardState() {
   return {
-    resources: { coin: 200, hash: 0, compute: 0, skill: 0, energy: 0 },
+    resources: { coin: 200, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -291,6 +291,10 @@ function mergeBoardState(saved) {
           ? meta.baseCores || 0
           : undefined,
     };
+    if (meta.id === "ram" && merged.nodes[meta.id].level < 1) {
+      merged.nodes[meta.id].level = 1;
+      merged.nodes[meta.id].unlocked = true;
+    }
     if (meta.id === "collector") {
       merged.nodes[meta.id].unlocked = true;
       merged.nodes[meta.id].level = Math.max(1, merged.nodes[meta.id].level || 0);
@@ -303,7 +307,9 @@ function mergeBoardState(saved) {
       from &&
       to &&
       hasOutputAnchor(from) &&
-      (isEnergyConnection(c) ? hasEnergyInput(to) : hasInputAnchor(to))
+      (isEnergyConnection(c)
+        ? hasEnergyInput(to) && from.output === "energy"
+        : hasInputAnchor(to) && from.output === to.input)
     );
   });
   return merged;
@@ -742,8 +748,9 @@ function renderNodes() {
 function updateHud() {
   const hud = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["hash", "stat-hash", "rate-hash", "Hash"],
     ["compute", "stat-compute", "rate-compute", "Compute"],
+    ["data", "stat-data", "rate-data", "Data"],
+    ["hash", "stat-hash", "rate-hash", "Hash"],
     ["skill", "stat-skill", "rate-skill", "XP"],
   ];
   hud.forEach(([key, valueId, rateId, suffix]) => {
@@ -863,7 +870,16 @@ function runProduction(delta) {
 function simulateProduction(delta, targetState, options = {}) {
   const { recordMetrics = false } = options;
   const metrics = recordMetrics ? {} : null;
-  const net = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0, energyProduced: 0, energyConsumed: 0 };
+  const net = {
+    coin: 0,
+    hash: 0,
+    compute: 0,
+    data: 0,
+    skill: 0,
+    energy: 0,
+    energyProduced: 0,
+    energyConsumed: 0,
+  };
   NODES.forEach((meta) => {
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
@@ -1019,6 +1035,8 @@ function endLink(e) {
 
 function label(resource) {
   switch (resource) {
+    case "data":
+      return "Data";
     case "coin":
       return "CXT";
     case "hash":

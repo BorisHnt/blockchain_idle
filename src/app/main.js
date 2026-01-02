@@ -25,7 +25,7 @@ const modules = buildModules();
 let lastFrame = performance.now();
 let lastSave = performance.now();
 let lastResources = { ...store.getState().resources };
-let smoothedRates = { coin: 0, hash: 0, compute: 0, skill: 0, energy: 0 };
+let smoothedRates = { coin: 0, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 };
 
 bootstrap();
 
@@ -85,8 +85,9 @@ function updateRates(dt) {
 function renderHud(resources, rates) {
   const mapping = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["hash", "stat-hash", "rate-hash", "Hash"],
     ["compute", "stat-compute", "rate-compute", "Compute"],
+    ["data", "stat-data", "rate-data", "Data"],
+    ["hash", "stat-hash", "rate-hash", "Hash"],
     ["energy", "stat-energy", "rate-energy", "W"],
     ["skill", "stat-skill", "rate-skill", "XP"],
   ];
