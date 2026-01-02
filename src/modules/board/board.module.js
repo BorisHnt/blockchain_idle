@@ -656,16 +656,11 @@ function getGpuCountCost(globalIndex) {
   return Math.round(base * Math.pow(mult, Math.max(0, globalIndex - 1)));
 }
 
-function getGpuCardCost(cardNumber) {
-  if (cardNumber === 2) return 1_000_000;
-  if (cardNumber === 3) return 50_000_000;
-  if (cardNumber === 4) return 1_000_000_000;
-  // au-delà de 4 cartes, on continue avec une croissance douce x2 par carte
-  if (cardNumber > 4) {
-    const extra = cardNumber - 4;
-    return Math.round(1_000_000_000 * Math.pow(2, extra));
-  }
-  return Infinity;
+function getGpuCardCost(/*cardNumber*/) {
+  // Prix d'une carte = prix du prochain GPU (pour garder une progression simple)
+  const gpu = getGpuState();
+  const nextIndex = (gpu.purchasedGpuCount || 0) + 1;
+  return getGpuCountCost(nextIndex);
 }
 
 function getGpuChunkCost(nextTier) {
@@ -896,10 +891,12 @@ function upgradeGpuCard() {
   state.resources.coin -= cost;
   // bonus GPU offert (1 GPU avec 1 cellule)
   const bonusGpu = (gpu.gpuCount || 1) + 1;
+  const bonusPurchased = (gpu.purchasedGpuCount || 0) + 1; // le coût suit la même progression que les GPUs
   state.nodes.gpu = {
     ...gpu,
     cardCount: nextCard,
     gpuCount: bonusGpu,
+    purchasedGpuCount: bonusPurchased,
     unlocked: true,
   };
   updateNodeCard("gpu");
@@ -1455,16 +1452,17 @@ function updateNodeCard(id) {
 
     const freqCost = getGpuFreqCost(gs.freqLevel);
     const cellsCost = getGpuCellsCost(gs.cellsPerGpu + 1);
-    const gpuCost = getGpuCountCost((gs.purchasedGpuCount || 0) + 1);
+    const nextGpuIndex = (gs.purchasedGpuCount || 0) + 1;
+    const gpuCost = getGpuCountCost(nextGpuIndex);
     const nextCard = gs.cardCount + 1;
     const cardCost = getGpuCardCost(nextCard);
     const nextTier = gs.chunkTier + 1;
     const chunkCost = getGpuChunkCost(nextTier);
     const compCost = getGpuCompressionCost(gs.compressionLevel + 1);
-    if (ui.gpuFreqCost) ui.gpuFreqCost.textContent = `Coût: ${formatNumber(freqCost)} CXT`;
-    if (ui.gpuCellsCost) ui.gpuCellsCost.textContent = `Coût: ${formatNumber(cellsCost)} CXT`;
-    if (ui.gpuChunkCost) ui.gpuChunkCost.textContent = nextTier >= GPU_CHUNK_SIZES.length ? "Max" : `Coût: ${formatNumber(chunkCost)} CXT`;
-    if (ui.gpuCompCost) ui.gpuCompCost.textContent = `Coût: ${formatNumber(compCost)} CXT`;
+    if (ui.gpuFreqCost) ui.gpuFreqCost.textContent = `Coût: ${formatCompact(freqCost)} CXT`;
+    if (ui.gpuCellsCost) ui.gpuCellsCost.textContent = `Coût: ${formatCompact(cellsCost)} CXT`;
+    if (ui.gpuChunkCost) ui.gpuChunkCost.textContent = nextTier >= GPU_CHUNK_SIZES.length ? "Max" : `Coût: ${formatCompact(chunkCost)} CXT`;
+    if (ui.gpuCompCost) ui.gpuCompCost.textContent = `Coût: ${formatCompact(compCost)} CXT`;
 
     if (ui.gpuFreqBtn) ui.gpuFreqBtn.disabled = state.resources.coin < freqCost;
     if (ui.gpuCellsBtn) ui.gpuCellsBtn.disabled = state.resources.coin < cellsCost;
@@ -1481,17 +1479,17 @@ function updateNodeCard(id) {
       ui.gpuMainBtn.disabled = !canBuy;
     }
     if (ui.gpuMainCost) {
-      ui.gpuMainCost.textContent = isFinite(mainCost) ? `Coût: ${formatNumber(mainCost)} CXT` : "Max";
+      ui.gpuMainCost.textContent = isFinite(mainCost) ? `${formatCompact(mainCost)} CXT` : "Max";
     }
     if (ui.gpuMainLabel) {
-      const onCardIdx = Math.min(gs.cardCount, Math.ceil(gs.gpuCount / 32)) || 1;
-      const gpuOnCurrent = gs.gpuCount - (gs.cardCount - 1) * 32;
-      const currentDisplay = Math.min(32, Math.max(0, gpuOnCurrent));
-      ui.gpuMainLabel.textContent = `Carte ${onCardIdx} (${currentDisplay}/32) · ${gs.cardCount} carte(s) total`;
+      const cardIdx = Math.min(gs.cardCount, Math.ceil(gs.gpuCount / 32) || 1);
+      const gpuOnCard = gs.gpuCount - (cardIdx - 1) * 32;
+      const clampedGpu = Math.min(32, Math.max(0, gpuOnCard));
+      ui.gpuMainLabel.textContent = `Carte ${cardIdx} · GPU ${clampedGpu}/32`;
     }
 
     // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
-    ui.costEl.textContent = `${formatNumber(mainCost)} CXT`;
+    ui.costEl.textContent = `${formatCompact(mainCost)} CXT`;
     if (ui.gpuGrid) renderGpuGrid(ui.gpuGrid, gs);
   }
 
@@ -1835,6 +1833,22 @@ function formatSignedW(value) {
   const formatted = abs < 1 ? abs.toFixed(2) : abs.toFixed(1);
   const prefix = value > 0 ? "+" : "-";
   return `${prefix}${formatted} W`;
+}
+
+function formatCompact(value) {
+  const abs = Math.abs(value);
+  const units = [
+    { v: 1e12, s: "T" },
+    { v: 1e9, s: "B" },
+    { v: 1e6, s: "M" },
+    { v: 1e3, s: "K" },
+  ];
+  for (const u of units) {
+    if (abs >= u.v) {
+      return `${(value / u.v).toFixed(abs >= u.v * 10 ? 1 : 2)}${u.s}`;
+    }
+  }
+  return formatNumber(value);
 }
 
 function getEnergyLoadPercent() {
