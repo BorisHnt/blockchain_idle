@@ -33,7 +33,8 @@ export function getEnergyUpgradeCost(currentLevel) {
   const nextLevel = currentLevel + 1;
   if (currentLevel === 0) return 0; // passage 0->1 gratuit (ALLUMER)
   // Décale le pricing : l’ancien coût de niveau N devient coût de niveau N+1
-  return Math.round(100 * Math.exp(2 * Math.pow(Math.max(1, nextLevel - 1) - 1, 0.5)));
+  const shiftedLevel = Math.max(1, nextLevel - 1);
+  return Math.round(100 * Math.exp(2 * Math.pow(shiftedLevel - 1, 0.5)));
 }
 
 // Multiplicateur de prod de l'Energy Source en fonction du niveau (sans power cells).

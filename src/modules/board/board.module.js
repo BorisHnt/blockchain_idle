@@ -611,7 +611,7 @@ function formatUnlockCost(cost) {
 function unlockNode(id) {
   const meta = getNodeMeta(id);
   if (!meta.unlock) return;
-  if (!canUnlock(meta)) {
+  if (meta.id !== "energy" && !canUnlock(meta)) {
     flashHint("Conditions non remplies");
     return;
   }
@@ -993,7 +993,7 @@ function updateNodeCard(id) {
   }
 
   if (!unlocked) {
-    ui.costEl.textContent = formatUnlockCost(meta.unlock);
+    ui.costEl.textContent = meta.id === "energy" ? "Gratuit" : formatUnlockCost(meta.unlock);
     ui.rateEl.textContent = meta.id === "energy" ? "0 W" : "0/s";
     ui.statusEl.textContent = "Verrouillé";
     ui.statusEl.style.color = "var(--muted)";
