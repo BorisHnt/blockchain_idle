@@ -1086,9 +1086,8 @@ function renderNodes() {
                 <div class="gpu-grid" data-gpu-grid></div>
                 <div class="gpu-main-action">
                   <button data-gpu-main-btn>GPU +1</button>
-                  <div class="muted small" data-gpu-main-cost>Coût: 0 CXT</div>
-                  <div class="muted small" data-gpu-main-label></div>
                 </div>
+                <div class="muted small" data-gpu-main-label></div>
               </div>
               <div class="gpu-upgrades">
                 <div class="ram-upgrade">
@@ -1226,7 +1225,6 @@ function renderNodes() {
       gpuCellsBtn: card.querySelector("[data-gpu-cells-btn]"),
       gpuCellsCost: card.querySelector("[data-gpu-cells-cost]"),
       gpuMainBtn: card.querySelector("[data-gpu-main-btn]"),
-      gpuMainCost: card.querySelector("[data-gpu-main-cost]"),
       gpuMainLabel: card.querySelector("[data-gpu-main-label]"),
       gpuCards: card.querySelector("[data-gpu-cards]"),
       gpuChunkLabel: card.querySelector("[data-gpu-chunk-label]"),
@@ -1475,11 +1473,8 @@ function updateNodeCard(id) {
     const mainCost = hasCapacity ? gpuCost : cardCost;
     const canBuy = state.resources.coin >= mainCost && isFinite(mainCost);
     if (ui.gpuMainBtn) {
-      ui.gpuMainBtn.textContent = mainLabel;
+      ui.gpuMainBtn.innerHTML = `${mainLabel}<br><span class="btn-sub">${formatCompact(mainCost)} CXT</span>`;
       ui.gpuMainBtn.disabled = !canBuy;
-    }
-    if (ui.gpuMainCost) {
-      ui.gpuMainCost.textContent = isFinite(mainCost) ? `${formatCompact(mainCost)} CXT` : "Max";
     }
     if (ui.gpuMainLabel) {
       const cardIdx = Math.min(gs.cardCount, Math.ceil(gs.gpuCount / 32) || 1);

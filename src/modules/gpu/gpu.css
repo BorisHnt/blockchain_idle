@@ -67,22 +67,31 @@
 }
 
 .gpu-card .gpu-main {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 
 .gpu-card .gpu-main-action {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-self: stretch;
-  justify-content: center;
+  width: 100%;
 }
 
 .gpu-card .gpu-main-action button {
   min-width: 140px;
+  max-width: 200px;
+  width: 100%;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.gpu-card .btn-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .gpu-card .gpu-upgrades {
