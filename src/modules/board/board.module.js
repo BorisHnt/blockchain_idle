@@ -25,8 +25,9 @@ const RAM_CHARGE_BASE = 10;
 const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
 const RAM_DISCHARGE_GROWTH = 1.15;
+const RAM_EPS = 0.1; // petite tolérance pour éviter les clignotements (Mo)
 
-const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu", "collector"]);
+const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu"]);
 
 const NODES = [
   {
@@ -454,7 +455,7 @@ function round1(value) {
 }
 
 function getValidatorEnergyUse(level) {
-  const base = 200;
+  const base = 150;
   const growth = 1.18;
   return round1(base * Math.pow(growth, Math.max(0, level - 1)));
 }
@@ -761,6 +762,8 @@ function renderNodes() {
               ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${
                   meta.output === "energy" ? "Energy" : label(meta.output)
                 }</span>`
+              : meta.id === "collector"
+              ? ""
               : `<span class="pill output muted">Out: -</span>`
           }
         </div>
@@ -795,7 +798,7 @@ function renderNodes() {
               </div>`
             : ""
         }
-        <div class="node-row"><span>Coût</span><span data-cost>0</span></div>
+        <div class="node-row" ${meta.id === "collector" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.id === "ram"
             ? `<div class="ram-upgrades">
@@ -845,12 +848,8 @@ function renderNodes() {
             : ""
         }
         <div class="actions">
-          ${
-            meta.id === "collector"
-              ? ""
-              : `<button data-unlock class="ghost">Débloquer</button>
-                 <button data-upgrade>Améliorer</button>`
-          }
+          <button data-unlock class="ghost" ${meta.id === "collector" ? 'style="display:none;"' : ""}>Débloquer</button>
+          <button data-upgrade ${meta.id === "collector" ? 'style="display:none;"' : ""}>Améliorer</button>
         </div>
         <div class="node-row muted"><span>État</span><span data-status>Actif</span></div>
       </div>
@@ -859,8 +858,8 @@ function renderNodes() {
     const upgradeBtn = card.querySelector("[data-upgrade]");
     const unlockBtn = card.querySelector("[data-unlock]");
     const coreBtn = card.querySelector("[data-core]");
-    upgradeBtn.addEventListener("click", () => handleUpgrade(meta.id));
-    unlockBtn.addEventListener("click", () => unlockNode(meta.id));
+    upgradeBtn?.addEventListener("click", () => handleUpgrade(meta.id));
+    unlockBtn?.addEventListener("click", () => unlockNode(meta.id));
     if (coreBtn) {
       coreBtn.addEventListener("click", () => addCore(meta.id));
     }
