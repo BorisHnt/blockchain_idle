@@ -855,10 +855,14 @@ function renderNodes() {
               </div>`
             : ""
         }
-        <div class="actions">
-          <button data-unlock class="ghost" ${meta.id === "collector" ? 'style="display:none;"' : ""}>Débloquer</button>
-          <button data-upgrade ${meta.id === "collector" || meta.id === "ram" ? 'style="display:none;"' : ""}>Améliorer</button>
-        </div>
+        ${
+          meta.id === "collector" || meta.id === "ram"
+            ? `<div class="actions" style="display:none;"></div>`
+            : `<div class="actions">
+                 <button data-unlock class="ghost">Débloquer</button>
+                 <button data-upgrade>Améliorer</button>
+               </div>`
+        }
         <div class="node-row muted"><span>État</span><span data-status>Actif</span></div>
       </div>
     `;
@@ -995,19 +999,11 @@ function updateNodeCard(id) {
   ui.levelEl.textContent = level;
   const isEnergyOff = meta.id === "energy" && level === 0;
   ui.card.classList.toggle("locked", !unlocked && !isEnergyOff);
-  if (meta.id !== "collector") {
-    ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+  if (ui.unlockBtn) ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+  if (ui.upgradeBtn) {
     ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
-    ui.unlockBtn.disabled = unlocked || isEnergyOff || !canUnlock(meta);
     ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
-  } else {
-    ui.unlockBtn.style.display = "none";
-    ui.upgradeBtn.style.display = "none";
-  }
-  if (meta.id === "energy" && isEnergyOff) {
-    ui.upgradeBtn.textContent = "ALLUMER";
-  } else {
-    ui.upgradeBtn.textContent = "Améliorer";
+    ui.upgradeBtn.textContent = meta.id === "energy" && isEnergyOff ? "ALLUMER" : "Améliorer";
   }
 
   if (!unlocked && !isEnergyOff) {
