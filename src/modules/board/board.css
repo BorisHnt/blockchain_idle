@@ -500,6 +500,47 @@
   margin-bottom: 0;
 }
 
+#mod-board .val-transfer {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(77, 212, 255, 0.06);
+}
+
+#mod-board .val-led {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(77, 212, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+#mod-board .val-led.on {
+  background: #5fdab8;
+  box-shadow: 0 0 12px rgba(95, 218, 184, 0.7);
+}
+
+#mod-board .val-led.off {
+  background: #ff5f7a;
+  box-shadow: 0 0 12px rgba(255, 95, 122, 0.5);
+}
+
+#mod-board .val-bandwidth {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--mono);
+}
+
+#mod-board .val-rate {
+  color: #a7ecff;
+}
+
 #mod-board .util-bar {
   height: 8px;
   border-radius: 999px;
@@ -521,6 +562,23 @@
 
 #mod-board .util-bar-fill.low {
   background: linear-gradient(90deg, #ff9f5f, #ff5f7a);
+}
+
+#mod-board .ram-upgrades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 6px 0;
+}
+
+#mod-board .ram-upgrade {
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 #mod-board .node-level {

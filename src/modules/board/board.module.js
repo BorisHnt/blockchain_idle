@@ -1,4 +1,4 @@
-import { clamp, formatNumber, formatRate, formatSeconds } from "../../app/utils.js";
+import { clamp, formatNumber, formatRate, formatSeconds, formatBandwidth, formatBandwidthRate } from "../../app/utils.js";
 import { createWires } from "./wires.js";
 import { createCablage } from "./cablage.js";
 import { bindIoDots, createIoContextMenu } from "./interactions-io.js";
@@ -40,9 +40,9 @@ const NODES = [
   {
     id: "validator",
     name: "Network Computer",
-    caption: "Transforme l'énergie en compute",
+    caption: "Transforme l'énergie en bandwidth",
     type: "source",
-    output: "compute",
+    output: "bandwidth",
     energyUse: 240,
     baseRate: 4.2,
     baseCost: 60,
@@ -86,8 +86,8 @@ const NODES = [
   {
     id: "ram",
     name: "RAM Cache",
-    caption: "Précharge le compute en data",
-    input: "compute",
+    caption: "Précharge le bandwidth en data",
+    input: "bandwidth",
     output: "data",
     efficiency: 1.25,
     energyUse: 90,
@@ -97,6 +97,8 @@ const NODES = [
     y: 400,
     startLevel: 1,
     startUnlocked: true,
+    capBase: 400,
+    capGrowth: 1.35,
   },
   {
     id: "optimizer",
@@ -128,9 +130,9 @@ const NODES = [
   {
     id: "firmware",
     name: "Firmware Uploader",
-    caption: "Compétences → Compute",
+    caption: "Compétences → Bandwidth",
     input: "skill",
-    output: "compute",
+    output: "bandwidth",
     energyUse: 110,
     baseRate: 0.8,
     baseCost: 240,
@@ -165,7 +167,7 @@ let offlineGainEl;
 
 let state;
 let bindings = {};
-let resourceRates = { coin: 0, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 };
+let resourceRates = { coin: 0, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 };
 let drag = null;
 let linking = null;
 let accumulator = 0;
@@ -181,7 +183,7 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 
 export function createBoardState() {
   return {
-    resources: { coin: 200, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 },
+    resources: { coin: 200, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -252,8 +254,12 @@ function mergeBoardState(saved) {
   const baseNodes = buildDefaultNodes();
   const baseLayout = buildDefaultLayout();
   const needsReset = saved.boardVersion !== BOARD_STATE_VERSION;
+  const savedResources = needsReset ? createBoardState().resources : { ...createBoardState().resources, ...(saved.resources || {}) };
+  const bandwidth = savedResources.bandwidth ?? savedResources.compute ?? 0;
+  const mergedResources = { ...savedResources, bandwidth };
+  delete mergedResources.compute;
   const merged = {
-    resources: needsReset ? createBoardState().resources : { ...createBoardState().resources, ...(saved.resources || {}) },
+    resources: mergedResources,
     nodes: needsReset ? { ...baseNodes } : { ...baseNodes, ...(saved.nodes || {}) },
     powerCells: needsReset ? createDefaultPowerCells() : mergePowerCells(saved.powerCells),
     layout:
@@ -289,6 +295,12 @@ function mergeBoardState(saved) {
           ? nodeState.cores
           : meta.coresMax
           ? meta.baseCores || 0
+          : undefined,
+      capLevel:
+        meta.id === "ram" && typeof nodeState.capLevel === "number"
+          ? nodeState.capLevel
+          : meta.id === "ram"
+          ? 1
           : undefined,
     };
     if (meta.id === "ram" && merged.nodes[meta.id].level < 1) {
@@ -356,6 +368,7 @@ function buildDefaultNodes() {
       level,
       unlocked: meta.startUnlocked || level > 0,
       cores: meta.coresMax ? meta.baseCores || 0 : undefined,
+      capLevel: meta.id === "ram" ? 1 : undefined,
     };
     return acc;
   }, {});
@@ -417,9 +430,9 @@ function round1(value) {
 }
 
 function getValidatorEnergyUse(level) {
-  if (level <= 0) return 170;
-  // Closed form of cumulative increments: base 170 + sum_{k=1..L} (25 + 5k)
-  return round1(170 + 25 * level + 2.5 * level * (level + 1));
+  const base = 200;
+  const growth = 1.18;
+  return round1(base * Math.pow(growth, Math.max(0, level - 1)));
 }
 
 function getValidatorUpgradeCost(currentLevel) {
@@ -472,6 +485,9 @@ function isUnlocked(id) {
 function getUpgradeCost(id) {
   const meta = getNodeMeta(id);
   const level = getLevel(id);
+  if (meta.id === "ram") {
+    return getRamFreqCost(level);
+  }
   if (meta.id === "energy") {
     return getEnergyUpgradeCost(level);
   }
@@ -492,6 +508,27 @@ function getCoreCost(id) {
   const base = meta.coreCost || meta.baseCost || 100;
   const growth = meta.coreGrowth || 1.35;
   return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
+}
+
+function getRamCapLevel() {
+  return state.nodes.ram?.capLevel || 1;
+}
+
+function getRamCapacity(level = getRamCapLevel()) {
+  const meta = getNodeMeta("ram");
+  const base = meta?.capBase || 400;
+  const growth = meta?.capGrowth || 1.35;
+  return base * Math.pow(growth, Math.max(0, level - 1));
+}
+
+function getRamCapCost(level = getRamCapLevel()) {
+  const base = 150;
+  const growth = 1.2;
+  return Math.round(base * Math.pow(growth, Math.max(0, level - 1)));
+}
+
+function getRamFreqCost(level) {
+  return Math.round(200 * Math.pow(1.22, Math.max(0, level - 1)));
 }
 
 function getRate(meta, level) {
@@ -556,6 +593,10 @@ function handleUpgrade(id) {
     unlockNode(id);
     return;
   }
+  if (id === "ram") {
+    upgradeRamFrequency();
+    return;
+  }
   const cost = getUpgradeCost(id);
   if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
@@ -584,6 +625,44 @@ function addCore(id) {
   state.resources.coin -= cost;
   state.nodes[id] = { ...state.nodes[id], cores: cores + 1 };
   updateNodeCard(id);
+  refreshWires();
+  syncStore();
+}
+
+function upgradeRamCapacity() {
+  const level = getRamCapLevel();
+  const cost = getRamCapCost(level);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.ram = {
+    ...state.nodes.ram,
+    unlocked: true,
+    level: Math.max(1, getLevel("ram")),
+    capLevel: level + 1,
+  };
+  updateNodeCard("ram");
+  refreshWires();
+  syncStore();
+}
+
+function upgradeRamFrequency() {
+  const level = getLevel("ram");
+  const cost = getRamFreqCost(level);
+  if (state.resources.coin < cost) {
+    flashHint("Pas assez de crédits");
+    return;
+  }
+  state.resources.coin -= cost;
+  state.nodes.ram = {
+    ...state.nodes.ram,
+    unlocked: true,
+    level: level + 1,
+    capLevel: getRamCapLevel(),
+  };
+  updateNodeCard("ram");
   refreshWires();
   syncStore();
 }
@@ -665,16 +744,43 @@ function renderNodes() {
         }
         <div class="node-row"><span>Coût</span><span data-cost>0</span></div>
         ${
-          meta.coresMax
-            ? `<div class="cores">
-                <div class="core-list" data-cores></div>
-                <button data-core>Add core</button>
+          meta.id === "ram"
+            ? `<div class="ram-upgrades">
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Capacité</span><span data-ram-cap>0</span></div>
+                  <button data-ram-cap-btn>Capacité +1</button>
+                  <div class="muted small" data-ram-cap-cost>Coût: 0 CXT</div>
+                </div>
+                <div class="ram-upgrade">
+                  <div class="node-row"><span>Fréquence</span><span data-ram-freq>0</span></div>
+                  <button data-ram-freq-btn>Fréquence +1</button>
+                  <div class="muted small" data-ram-freq-cost>Coût: 0 CXT</div>
+                </div>
               </div>`
             : ""
         }
-        ${
-          meta.id === "energy"
-            ? `<div class="power-section">
+      ${
+        meta.coresMax
+          ? `<div class="cores">
+                <div class="core-list" data-cores></div>
+                <button data-core>Add core</button>
+              </div>`
+          : ""
+      }
+      ${
+        meta.id === "validator"
+          ? `<div class="val-transfer">
+              <div class="val-led" data-val-led></div>
+              <div class="val-bandwidth">
+                <span class="muted">Transfert</span>
+                <span class="val-rate" data-val-rate>0 Mo/s</span>
+              </div>
+            </div>`
+          : ""
+      }
+      ${
+        meta.id === "energy"
+          ? `<div class="power-section">
                 <div class="power-header" data-power-block-label>Bloc 1 (0/8) · +50 W/cell</div>
                 <div class="power-stacks" data-power-stacks></div>
                 <div class="power-mult" data-power-mult style="display:none;">
@@ -701,6 +807,10 @@ function renderNodes() {
     if (coreBtn) {
       coreBtn.addEventListener("click", () => addCore(meta.id));
     }
+    const ramCapBtn = card.querySelector("[data-ram-cap-btn]");
+    const ramFreqBtn = card.querySelector("[data-ram-freq-btn]");
+    ramCapBtn?.addEventListener("click", () => upgradeRamCapacity());
+    ramFreqBtn?.addEventListener("click", () => handleUpgrade("ram"));
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
       if (!e.target.closest(".drag-handle")) return;
@@ -721,6 +831,12 @@ function renderNodes() {
       upgradeBtn,
       unlockBtn,
       coreBtn,
+      ramCapValue: card.querySelector("[data-ram-cap]"),
+      ramFreqValue: card.querySelector("[data-ram-freq]"),
+      ramCapBtn,
+      ramFreqBtn,
+      ramCapCost: card.querySelector("[data-ram-cap-cost]"),
+      ramFreqCost: card.querySelector("[data-ram-freq-cost]"),
       coresContainer: card.querySelector("[data-cores]"),
       inputDot,
       energyDot,
@@ -733,6 +849,8 @@ function renderNodes() {
       multBtn: card.querySelector("[data-upgrade-mult]"),
       multCost: card.querySelector("[data-mult-cost]"),
       multLevel: card.querySelector("[data-mult-level]"),
+      valLed: card.querySelector("[data-val-led]"),
+      valRate: card.querySelector("[data-val-rate]"),
     };
 
     if (meta.id === "energy") {
@@ -748,7 +866,7 @@ function renderNodes() {
 function updateHud() {
   const hud = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["compute", "stat-compute", "rate-compute", "Compute"],
+    ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
     ["data", "stat-data", "rate-data", "Data"],
     ["hash", "stat-hash", "rate-hash", "Hash"],
     ["skill", "stat-skill", "rate-skill", "XP"],
@@ -756,8 +874,21 @@ function updateHud() {
   hud.forEach(([key, valueId, rateId, suffix]) => {
     const valueEl = document.getElementById(valueId);
     const rateEl = document.getElementById(rateId);
-    if (valueEl) valueEl.textContent = `${formatNumber(state.resources[key] || 0)}${suffix ? ` ${suffix}` : ""}`;
-    if (rateEl) rateEl.textContent = `${formatRate(resourceRates[key] || 0)}/s`;
+    const val = state.resources[key] || 0;
+    if (valueEl) {
+      if (key === "bandwidth") {
+        valueEl.textContent = formatBandwidth(val);
+      } else {
+        valueEl.textContent = `${formatNumber(val)}${suffix ? ` ${suffix}` : ""}`;
+      }
+    }
+    if (rateEl) {
+      if (key === "bandwidth") {
+        rateEl.textContent = formatBandwidthRate(resourceRates[key] || 0);
+      } else {
+        rateEl.textContent = `${formatRate(resourceRates[key] || 0)}/s`;
+      }
+    }
   });
 
   const energyValEl = document.getElementById("stat-energy");
@@ -799,6 +930,9 @@ function updateNodeCard(id) {
   ui.upgradeBtn.style.display = unlocked ? "inline-flex" : "none";
   ui.unlockBtn.disabled = unlocked || !canUnlock(meta);
   ui.upgradeBtn.disabled = !unlocked || state.resources.coin < getUpgradeCost(id);
+  if (meta.id === "ram") {
+    ui.upgradeBtn.textContent = "Fréquence +1";
+  }
 
   if (!unlocked) {
     ui.costEl.textContent = formatUnlockCost(meta.unlock);
@@ -810,8 +944,48 @@ function updateNodeCard(id) {
 
   ui.costEl.textContent = `${formatNumber(getUpgradeCost(id))} CXT`;
   const rawRate = level > 0 ? getRate(meta, level) * (meta.efficiency || 1) : 0;
-  const rate = level > 0 ? formatRate(rawRate) : "0";
-  ui.rateEl.textContent = meta.id === "energy" ? `${rate} W` : `${rate}/s`;
+  const rate =
+    meta.id === "validator"
+      ? level > 0
+        ? formatBandwidthRate(rawRate)
+        : "0 Mo/s"
+      : level > 0
+      ? formatRate(rawRate)
+      : "0";
+  if (meta.id === "energy") {
+    ui.rateEl.textContent = `${rate} W`;
+  } else if (meta.id === "validator") {
+    ui.rateEl.textContent = rate;
+  } else {
+    ui.rateEl.textContent = `${rate}/s`;
+  }
+
+  if (meta.id === "validator") {
+    if (ui.valRate) {
+      ui.valRate.textContent = level > 0 ? formatBandwidthRate(rawRate) : "0 Mo/s";
+    }
+    if (ui.valLed) {
+      ui.valLed.classList.toggle("on", canRun);
+      ui.valLed.classList.toggle("off", !canRun);
+    }
+  }
+
+  if (meta.id === "ram") {
+    const capLevel = getRamCapLevel();
+    const cap = getRamCapacity(capLevel);
+    if (ui.ramCapValue) ui.ramCapValue.textContent = `${formatNumber(cap)} Data`;
+    if (ui.ramFreqValue) ui.ramFreqValue.textContent = `Niv. ${level}`;
+    if (ui.ramCapCost) ui.ramCapCost.textContent = `Coût: ${formatNumber(getRamCapCost(capLevel))} CXT`;
+    if (ui.ramFreqCost) ui.ramFreqCost.textContent = `Coût: ${formatNumber(getRamFreqCost(level))} CXT`;
+    if (ui.ramCapBtn) {
+      ui.ramCapBtn.disabled = !unlocked || state.resources.coin < getRamCapCost(capLevel);
+    }
+    if (ui.ramFreqBtn) {
+      ui.ramFreqBtn.disabled = !unlocked || state.resources.coin < getRamFreqCost(level);
+    }
+    // On affiche le coût principal comme le coût fréquence pour cohérence.
+    ui.costEl.textContent = `${formatNumber(getRamFreqCost(level))} CXT`;
+  }
 
   if (meta.coresMax && ui.coresContainer) {
     ui.coresContainer.innerHTML = "";
@@ -873,7 +1047,7 @@ function simulateProduction(delta, targetState, options = {}) {
   const net = {
     coin: 0,
     hash: 0,
-    compute: 0,
+    bandwidth: 0,
     data: 0,
     skill: 0,
     energy: 0,
@@ -893,6 +1067,17 @@ function simulateProduction(delta, targetState, options = {}) {
     const rate = getRate(meta, level) * (meta.efficiency || 1) * cores;
     const potential = rate * delta;
     let work = missingInputLink || missingEnergyLink ? 0 : potential;
+    if (meta.id === "ram") {
+      const capLevel = nodeState.capLevel || 1;
+      const cap = getRamCapacity(capLevel);
+      const currentData = targetState.resources.data || 0;
+      const space = Math.max(0, cap - currentData);
+      if (space <= 0) {
+        work = 0;
+      } else if (work > space) {
+        work = space;
+      }
+    }
     const energyUse = getEnergyUse(meta, level);
     if (!missingEnergyLink && energyUse && work > 0) {
       const needed = energyUse * delta;
@@ -1035,14 +1220,14 @@ function endLink(e) {
 
 function label(resource) {
   switch (resource) {
+    case "bandwidth":
+      return "Bandwidth";
     case "data":
       return "Data";
     case "coin":
       return "CXT";
     case "hash":
       return "Hash";
-    case "compute":
-      return "Compute";
     case "skill":
       return "XP";
     case "energy":

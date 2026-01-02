@@ -25,3 +25,21 @@ export const formatSeconds = (sec) => {
 };
 
 export const shallowClone = (value) => ({ ...value });
+
+export const formatBandwidth = (value) => {
+  if (!Number.isFinite(value)) return "0 Mo";
+  const abs = Math.abs(value);
+  if (abs >= 1_048_576) return `${(value / 1_048_576).toFixed(2)} To`;
+  if (abs >= 1024) return `${(value / 1024).toFixed(2)} Go`;
+  if (abs >= 1) return `${value.toFixed(1)} Mo`;
+  return `${value.toFixed(2)} Mo`;
+};
+
+export const formatBandwidthRate = (value) => {
+  if (!Number.isFinite(value)) return "0 Mo/s";
+  const abs = Math.abs(value);
+  if (abs >= 1_048_576) return `${(value / 1_048_576).toFixed(2)} To/s`;
+  if (abs >= 1024) return `${(value / 1024).toFixed(2)} Go/s`;
+  if (abs >= 1) return `${value.toFixed(1)} Mo/s`;
+  return `${value.toFixed(2)} Mo/s`;
+};

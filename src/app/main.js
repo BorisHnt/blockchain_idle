@@ -1,10 +1,10 @@
 import { createStore } from "./store.js";
 import { createBus } from "./events.js";
-import { clamp, formatNumber, formatRate, formatSeconds } from "./utils.js";
+import { clamp, formatNumber, formatRate, formatSeconds, formatBandwidth, formatBandwidthRate } from "./utils.js";
 import * as boardModule from "../modules/board/board.module.js";
 
 const STORAGE_KEY = "idle-techno-modular-v1";
-const VERSION = "0.3.0-board";
+const VERSION = "0.3.0-board-bandwidth";
 const MAX_OFFLINE_SECONDS = 60 * 60 * 4;
 const MODULE_CONFIG = {
   board: true,
@@ -25,7 +25,7 @@ const modules = buildModules();
 let lastFrame = performance.now();
 let lastSave = performance.now();
 let lastResources = { ...store.getState().resources };
-let smoothedRates = { coin: 0, hash: 0, compute: 0, data: 0, skill: 0, energy: 0 };
+let smoothedRates = { coin: 0, hash: 0, bandwidth: 0, data: 0, skill: 0, energy: 0 };
 
 bootstrap();
 
@@ -85,7 +85,7 @@ function updateRates(dt) {
 function renderHud(resources, rates) {
   const mapping = [
     ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["compute", "stat-compute", "rate-compute", "Compute"],
+    ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
     ["data", "stat-data", "rate-data", "Data"],
     ["hash", "stat-hash", "rate-hash", "Hash"],
     ["energy", "stat-energy", "rate-energy", "W"],
@@ -94,8 +94,21 @@ function renderHud(resources, rates) {
   mapping.forEach(([key, valueId, rateId, suffix]) => {
     const valueEl = document.getElementById(valueId);
     const rateEl = document.getElementById(rateId);
-    if (valueEl) valueEl.textContent = `${formatNumber(resources[key] || 0)}${suffix ? ` ${suffix}` : ""}`;
-    if (rateEl) rateEl.textContent = `${formatRate(rates[key] || 0)}/s`;
+    const val = resources[key] || 0;
+    if (valueEl) {
+      if (key === "bandwidth") {
+        valueEl.textContent = formatBandwidth(val);
+      } else {
+        valueEl.textContent = `${formatNumber(val)}${suffix ? ` ${suffix}` : ""}`;
+      }
+    }
+    if (rateEl) {
+      if (key === "bandwidth") {
+        rateEl.textContent = formatBandwidthRate(rates[key] || 0);
+      } else {
+        rateEl.textContent = `${formatRate(rates[key] || 0)}/s`;
+      }
+    }
   });
 }
 
@@ -159,10 +172,15 @@ function loadState() {
   if (!raw) return defaults;
   try {
     const parsed = JSON.parse(raw);
+    const mergedResources = { ...defaults.resources, ...(parsed.resources || {}) };
+    if (mergedResources.bandwidth === undefined && typeof mergedResources.compute === "number") {
+      mergedResources.bandwidth = mergedResources.compute;
+    }
+    delete mergedResources.compute;
     const merged = {
       ...defaults,
       ...parsed,
-      resources: { ...defaults.resources, ...(parsed.resources || {}) },
+      resources: mergedResources,
       modules: { ...defaults.modules, ...(parsed.modules || {}) },
       board: parsed.board ? { ...boardModule.createBoardState(), ...parsed.board } : defaults.board,
       lastSaved: parsed.lastSaved || Date.now(),
@@ -208,7 +226,7 @@ function applyPassive(dt) {
   store.setState((prev) => {
     const nextResources = { ...prev.resources };
     nextResources.energy = (nextResources.energy || 0) + 60 * dt;
-    nextResources.compute = (nextResources.compute || 0) + 0.6 * dt;
+    nextResources.bandwidth = (nextResources.bandwidth || 0) + 0.6 * dt;
     return { ...prev, resources: nextResources };
   });
 }
