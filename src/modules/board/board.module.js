@@ -1639,6 +1639,7 @@ function simulateProduction(delta, targetState, options = {}) {
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
         const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
+        const maxMo = actualMo; // alias de sécurité pour éviter les refs anciennes
         const chunksProcessed = chunkSizeMo > 0 ? actualMo / chunkSizeMo : 0;
         const hashProduced = chunksProcessed * hashesPerChunk;
         const energyConsume = energyNeeded * energyFactor;
