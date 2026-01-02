@@ -344,6 +344,7 @@ function mergeBoardState(saved) {
   merged.nodes.ram = {
     ...ramNode,
     fill: clamp(savedFill, 0, cap),
+    discharging: typeof ramNode.discharging === "boolean" ? ramNode.discharging : false,
   };
   return merged;
 }
@@ -391,6 +392,7 @@ function buildDefaultNodes() {
       cores: meta.coresMax ? meta.baseCores || 0 : undefined,
       capLevel: meta.id === "ram" ? 1 : undefined,
       fill: meta.id === "ram" ? 0 : undefined,
+      discharging: meta.id === "ram" ? false : undefined,
     };
     return acc;
   }, {});
@@ -1142,6 +1144,7 @@ function simulateProduction(delta, targetState, options = {}) {
       const capLevel = nodeState.capLevel || 1;
       const cap = getRamCapacity(capLevel);
       const currentFill = clamp(nodeState.fill || 0, 0, cap);
+      const discharging = typeof nodeState.discharging === "boolean" ? nodeState.discharging : false;
       const chargeRate = getRamChargeRate(level) * (meta.efficiency || 1);
       const desiredCharge = chargeRate * delta;
       const energyUse = getEnergyUse(meta, level);
@@ -1161,7 +1164,7 @@ function simulateProduction(delta, targetState, options = {}) {
       net.energy -= energyConsume;
       net.energyConsumed += energyConsume;
       net.bandwidth -= bandwidthConsume;
-      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge };
+      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge, discharging };
       if (metrics) metrics[meta.id] = { potential: desiredCharge, actual: charge };
       return;
     }
@@ -1188,7 +1191,11 @@ function simulateProduction(delta, targetState, options = {}) {
         const ramState = targetState.nodes.ram || {};
         const cap = getRamCapacity(ramState.capLevel || 1);
         const fill = clamp(ramState.fill || 0, 0, cap);
-        if (fill < cap) {
+        let discharging = typeof ramState.discharging === "boolean" ? ramState.discharging : false;
+        if (!discharging && fill >= cap) {
+          discharging = true;
+        }
+        if (!discharging) {
           if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
           return;
         }
@@ -1201,7 +1208,12 @@ function simulateProduction(delta, targetState, options = {}) {
         const dataUse = Math.min(fill, cappedMo);
         const energyConsume = energyNeeded * (cappedMo > 0 ? dataUse / cappedMo : 0);
         const hashProduced = dataUse * GPU_HASH_PER_MO;
-        targetState.nodes.ram = { ...ramState, fill: Math.max(0, fill - dataUse) };
+        let nextFill = Math.max(0, fill - dataUse);
+        if (nextFill <= RAM_EPS) {
+          nextFill = 0;
+          discharging = false;
+        }
+        targetState.nodes.ram = { ...ramState, fill: nextFill, discharging };
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         net.energy -= energyConsume;
         net.energyConsumed += energyConsume;
