@@ -48,7 +48,7 @@ const NODES = [
     caption: "Transforme l'énergie en bandwidth",
     type: "source",
     output: "bandwidth",
-    energyUse: 240,
+    energyUse: 150,
     baseRate: 4.2,
     baseCost: 60,
     x: 80,
@@ -63,7 +63,7 @@ const NODES = [
     input: "bandwidth",
     output: "data",
     efficiency: 1.25,
-    energyUse: 90,
+    energyUse: 60,
     baseRate: 1.4,
     baseCost: 200,
     x: 420,
@@ -79,7 +79,7 @@ const NODES = [
     caption: "Data → Hash",
     input: "data",
     output: "hash",
-    energyUse: 180,
+    energyUse: 120,
     baseRate: 2.3,
     baseCost: 120,
     x: 420,
@@ -93,7 +93,7 @@ const NODES = [
     caption: "Hash → Crédits",
     input: "hash",
     output: "coin",
-    energyUse: 260,
+    energyUse: 85,
     baseRate: 1.1,
     baseCost: 140,
     x: 760,
@@ -981,6 +981,13 @@ function updateNodeCard(id) {
   ui.upgradeBtn.style.display = unlocked ? "inline-flex" : "none";
   ui.unlockBtn.disabled = unlocked || !canUnlock(meta);
   ui.upgradeBtn.disabled = !unlocked || state.resources.coin < getUpgradeCost(id);
+  if (meta.id === "energy" && !unlocked) {
+    ui.upgradeBtn.textContent = "ALLUMER";
+  } else if (meta.id === "ram") {
+    ui.upgradeBtn.textContent = "Fréquence +1";
+  } else {
+    ui.upgradeBtn.textContent = "Améliorer";
+  }
   if (meta.id === "ram") {
     ui.upgradeBtn.textContent = "Fréquence +1";
   }

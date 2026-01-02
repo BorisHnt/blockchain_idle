@@ -31,7 +31,9 @@ export function getGenericUpgradeCost(baseCost, currentLevel) {
 // Exemples : level=0 => 100 ; level=1 => 739 ; level=2 => 1694 ; level=3 => 3190 ; level=4 => 5460
 export function getEnergyUpgradeCost(currentLevel) {
   const nextLevel = currentLevel + 1;
-  return Math.round(100 * Math.exp(2 * Math.pow(Math.max(1, nextLevel) - 1, 0.5)));
+  if (currentLevel === 0) return 0; // passage 0->1 gratuit (ALLUMER)
+  // Décale le pricing : l’ancien coût de niveau N devient coût de niveau N+1
+  return Math.round(100 * Math.exp(2 * Math.pow(Math.max(1, nextLevel - 1) - 1, 0.5)));
 }
 
 // Multiplicateur de prod de l'Energy Source en fonction du niveau (sans power cells).
