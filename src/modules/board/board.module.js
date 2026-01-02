@@ -20,6 +20,7 @@ const LAYOUT_VERSION = 3;
 const BOARD_STATE_VERSION = 3;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
+const GPU_HASH_PER_MO = 0.23; // hash produits par Mo consommé au niveau 1 (hors scaling)
 
 const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu", "collector"]);
 
@@ -180,6 +181,9 @@ let energyProdRate = 0;
 let energyBalanceRate = 0;
 const VAL_UPGRADE_Q = 1.15;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
+const CPU_HASH_PER_SEC_BASE = 1.1;
+const CPU_HASH_SCALE = 1.18;
+const CPU_HASH_CAP_PER_TICK = 999999;
 
 export function createBoardState() {
   return {
@@ -551,6 +555,9 @@ function getRate(meta, level) {
   }
   if (meta.id === "validator") {
     return meta.baseRate * Math.pow(1.2, level - 1);
+  }
+  if (meta.id === "cpu") {
+    return CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1);
   }
   const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
@@ -1148,28 +1155,58 @@ function simulateProduction(delta, targetState, options = {}) {
       }
     }
     if (!missingInputLink && meta.input) {
-      if (meta.input === "data") {
+      if (meta.id === "gpu") {
         const ramState = targetState.nodes.ram || {};
         const cap = getRamCapacity(ramState.capLevel || 1);
         const fill = clamp(ramState.fill || 0, 0, cap);
-        if (fill <= 0) {
-          work = 0;
-        } else if (work > fill) {
-          work = fill;
-        }
-        targetState.nodes.ram = { ...ramState, fill: Math.max(0, fill - work) };
-      } else {
-        const ratio = meta.inputRatio || 1;
-        const available = (targetState.resources[meta.input] || 0) / ratio;
-        if (available <= 0) {
-          work = 0;
-        } else if (work > available) {
-          work = available;
-        }
-        const consume = work * ratio;
-        targetState.resources[meta.input] = (targetState.resources[meta.input] || 0) - consume;
-        net[meta.input] -= consume;
+        const throughput = getRate(meta, level) * (meta.efficiency || 1);
+        const potentialMo = throughput * delta;
+        const energyNeeded = getEnergyUse(meta, level) * delta;
+        const energyAvail = targetState.resources.energy || 0;
+        const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+        const cappedMo = potentialMo * energyFactor;
+        const dataUse = Math.min(fill, cappedMo);
+        const energyConsume = energyNeeded * (cappedMo > 0 ? dataUse / cappedMo : 0);
+        const hashProduced = dataUse * GPU_HASH_PER_MO;
+        targetState.nodes.ram = { ...ramState, fill: Math.max(0, fill - dataUse) };
+        targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
+        net.energy -= energyConsume;
+        net.energyConsumed += energyConsume;
+        targetState.resources.hash = (targetState.resources.hash || 0) + hashProduced;
+        net.hash += hashProduced;
+        if (metrics) metrics[meta.id] = { potential: potentialMo * GPU_HASH_PER_MO, actual: hashProduced };
+        return;
       }
+      if (meta.id === "cpu") {
+        const cpuRatePerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1) * (nodeState.cores || 1);
+        const hashAvailable = targetState.resources.hash || 0;
+        const energyNeeded = getEnergyUse(meta, level) * delta;
+        const energyAvail = targetState.resources.energy || 0;
+        const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+        let hashCanProcess = Math.min(hashAvailable, cpuRatePerSec * delta);
+        hashCanProcess = Math.min(hashCanProcess, CPU_HASH_CAP_PER_TICK * delta);
+        hashCanProcess *= energyFactor;
+        const energyConsume = energyNeeded * energyFactor;
+        targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
+        targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
+        targetState.resources.coin = (targetState.resources.coin || 0) + hashCanProcess;
+        net.energy -= energyConsume;
+        net.energyConsumed += energyConsume;
+        net.hash -= hashCanProcess;
+        net.coin += hashCanProcess;
+        if (metrics) metrics[meta.id] = { potential: cpuRatePerSec * delta, actual: hashCanProcess };
+        return;
+      }
+      const ratio = meta.inputRatio || 1;
+      const available = (targetState.resources[meta.input] || 0) / ratio;
+      if (available <= 0) {
+        work = 0;
+      } else if (work > available) {
+        work = available;
+      }
+      const consume = work * ratio;
+      targetState.resources[meta.input] = (targetState.resources[meta.input] || 0) - consume;
+      net[meta.input] -= consume;
     }
     if (metrics) metrics[meta.id] = { potential, actual: work };
     targetState.resources[meta.output] = (targetState.resources[meta.output] || 0) + work;
