@@ -17,7 +17,7 @@ export const id = "board";
 export const name = "Playfield";
 
 const LAYOUT_VERSION = 3;
-const BOARD_STATE_VERSION = 3;
+const BOARD_STATE_VERSION = 4;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 const GPU_HASH_PER_MO = 0.23; // hash produits par Mo consommé au niveau 1 (hors scaling)
