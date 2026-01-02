@@ -1068,7 +1068,7 @@ function renderNodes() {
           ${
             meta.input
               ? `<span class="pill input">In: ${label(meta.input)}</span>`
-              : meta.id === "energy" || meta.id === "validator"
+              : meta.id === "energy" || meta.id === "validator" || meta.id === "gpuopt"
               ? ""
               : `<span class="pill source">Source</span>`
           }
@@ -1080,7 +1080,9 @@ function renderNodes() {
           }
           ${
             hasOutputAnchor(meta)
-              ? `<span class="pill ${meta.output === "energy" ? "energy" : "output"}">Out: ${
+              ? `<span class="pill ${
+                  meta.output === "energy" ? "energy" : meta.output === "gpuopt" ? "opt" : "output"
+                }">Out: ${
                   meta.output === "energy" ? "Energy" : label(meta.output)
                 }</span>`
               : meta.id === "collector"
@@ -1091,7 +1093,9 @@ function renderNodes() {
         <div class="io-column io-column-right">
           ${
             hasOutputAnchor(meta)
-              ? `<div class="io-dot output ${meta.output === "energy" ? "energy" : ""}" title="Sortie" data-io="output" data-out-type="${meta.output}"></div>`
+              ? `<div class="io-dot output ${
+                  meta.output === "energy" ? "energy" : meta.output === "gpuopt" ? "opt" : ""
+                }" title="Sortie" data-io="output" data-out-type="${meta.output}"></div>`
               : ""
           }
         </div>
@@ -1237,7 +1241,7 @@ function renderNodes() {
             : ""
         }
         ${
-          meta.id === "collector" || meta.id === "ram" || meta.id === "gpu"
+          meta.id === "collector" || meta.id === "ram" || meta.id === "gpu" || meta.id === "gpuopt"
             ? `<div class="actions" style="display:none;"></div>`
             : `<div class="actions">
                  <button data-unlock class="ghost">Débloquer</button>
@@ -1416,7 +1420,7 @@ function updateNodeCard(id) {
   const unlocked = isUnlocked(id);
   const connected = !meta.input || hasInputConnection(id);
   const powered = !hasEnergyInput(meta) || hasEnergyConnection(id);
-  ui.levelEl.textContent = level;
+    ui.levelEl.textContent = level;
   const isEnergyOff = meta.id === "energy" && level === 0;
   ui.card.classList.toggle("locked", !unlocked && !isEnergyOff);
   if (ui.unlockBtn) ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
@@ -1434,8 +1438,8 @@ function updateNodeCard(id) {
     return;
   }
 
-  const hasInput = meta.input ? hasInputConnection(id) || level === 0 : true;
-  const canRun = (!meta.input || connected) && powered && hasInput;
+    const hasInput = meta.input ? hasInputConnection(id) || level === 0 : true;
+    const canRun = (!meta.input || connected) && powered && hasInput;
 
   ui.costEl.textContent = `${formatNumber(getUpgradeCost(id))} CXT`;
   const rawRate = level > 0 ? getRate(meta, level) * (meta.efficiency || 1) : 0;
@@ -1667,9 +1671,9 @@ function simulateProduction(delta, targetState, options = {}) {
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
     if (!nodeState.unlocked || level <= 0) {
-      if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
-      return;
-    }
+    if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
+    return;
+  }
     const missingInputLink = meta.input && !hasInputConnection(meta.id);
     const missingEnergyLink = hasEnergyInput(meta) && !hasEnergyConnection(meta.id);
     const cores = meta.coresMax ? nodeState.cores || meta.baseCores || 0 : 1;
