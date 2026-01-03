@@ -93,9 +93,17 @@
   color: var(--muted);
 }
 
-.gpu-card .gpu-main-label {
+.gpu-card .gpu-cards-upgrade {
   grid-column: 1 / -1;
   margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gpu-card .gpu-main-label {
+  margin: 0;
 }
 
 .gpu-card .gpu-upgrades {
