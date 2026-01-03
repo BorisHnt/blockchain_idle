@@ -1067,6 +1067,8 @@ function renderNodes() {
         <div class="${
           meta.id === "energy"
             ? "flow energy-flow"
+            : meta.id === "gpu"
+            ? "flow gpu-flow"
             : hasEnergyInput(meta) || hasOptInput(meta)
             ? "flow flow-stacked"
             : "flow"
