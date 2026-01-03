@@ -47,7 +47,7 @@
 }
 
 .gpu-card .gpu-cell {
-  width: 12px;
+  width: 10px;
   height: 12px;
   border-radius: 2px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -87,12 +87,12 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 140px;
+  width: 100%;
   align-items: flex-start;
 }
 
 .gpu-card .gpu-main-action button {
-  width: 140px;
+  width: 100%;
   white-space: normal;
   line-height: 1.2;
 }
@@ -105,6 +105,7 @@
 
 .gpu-card .gpu-main-label {
   margin: 0;
+  font-size: 10px;
 }
 
 .gpu-card .gpu-upgrades {
