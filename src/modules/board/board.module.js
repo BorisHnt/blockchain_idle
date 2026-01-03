@@ -1649,9 +1649,8 @@ function updateNodeCard(id) {
 
   if (meta.id === "collector") {
     if (ui.rateLabel) ui.rateLabel.textContent = "Coin Production";
-    const metrics = nodeMetrics[id] || { actual: 0 };
-    const deltaSec = lastDelta || 1;
-    const coinPerSec = metrics.actual / deltaSec;
+    // Affiche la production réelle de coins (débit global de coin)
+    const coinPerSec = resourceRates.coin || 0;
     ui.rateEl.textContent = `${formatRate(coinPerSec)}/s`;
   }
 
@@ -1889,7 +1888,7 @@ function simulateProduction(delta, targetState, options = {}) {
         hashCanProcess = Math.min(hashCanProcess, CPU_HASH_CAP_PER_TICK * delta);
         hashCanProcess *= energyFactor;
         const energyConsume = energyNeeded * energyFactor;
-        const coinGain = hashCanProcess * 0.008; // 100 hash -> 0.8 coin
+        const coinGain = hashCanProcess * 0.0007; // 1000 hash -> 0.8 coin
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
         targetState.resources.coin = (targetState.resources.coin || 0) + coinGain;
