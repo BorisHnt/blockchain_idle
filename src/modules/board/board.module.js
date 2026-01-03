@@ -1768,7 +1768,11 @@ function simulateProduction(delta, targetState, options = {}) {
       net.energy -= energyConsume;
       net.energyConsumed += energyConsume;
       net.bandwidth -= bandwidthConsume;
-      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge, discharging, lastIn: charge / delta, lastOut: 0 };
+      const upstreamPerSec =
+        metrics && metrics.validator && delta > 0 ? (metrics.validator.actual || 0) / delta : null;
+      const inPerSec = delta > 0 ? charge / delta : 0;
+      const displayIn = upstreamPerSec != null ? Math.min(inPerSec, upstreamPerSec) : inPerSec;
+      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge, discharging, lastIn: displayIn, lastOut: 0 };
       if (metrics) metrics[meta.id] = { potential: desiredCharge, actual: charge };
       return;
     }
