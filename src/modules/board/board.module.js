@@ -1962,7 +1962,7 @@ function endLink(e) {
 function label(resource) {
   switch (resource) {
     case "bandwidth":
-      return "Bandwidth";
+      return "Bdw";
     case "gpuopt":
       return "GPU Opt";
     case "data":
