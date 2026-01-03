@@ -2156,10 +2156,6 @@ function updatePowerCellsUI(ui) {
 
     const right = document.createElement("div");
     right.className = "power-row-right";
-    const label = document.createElement("div");
-    label.className = "muted small power-row-label";
-    label.textContent = `Bloc ${idx + 1} · Cell ${b.cells}/${POWER_CELLS_PER_BLOCK}`;
-
     const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
     let actionEl;
     if (!b.unlocked) {
@@ -2188,7 +2184,6 @@ function updatePowerCellsUI(ui) {
     }
 
     right.appendChild(actionEl);
-    right.appendChild(label);
 
     row.appendChild(left);
     row.appendChild(right);
