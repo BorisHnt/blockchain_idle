@@ -1538,8 +1538,8 @@ function updateNodeCard(id) {
     if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuStats) ui.gpuStats.style.display = optConnected ? "" : "none";
     if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
-    if (ui.rateLabel) ui.rateLabel.textContent = "Chunks conversion";
-    ui.rateEl.textContent = `${formatRate(effectiveHashPerSec)}/s`;
+    if (ui.rateLabel) ui.rateLabel.textContent = "Data conversion";
+    ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
     // stocke pour la jauge d'utilisation GPU
     ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
   }
