@@ -244,6 +244,17 @@
   animation: none;
 }
 
+/* Power buttons : stabilise hover (pas d’ombre ni transition) */
+#mod-board .power-section .power-row-btn {
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+#mod-board .power-section .power-row-btn:hover {
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 #mod-board .power-mult {
   display: flex;
   flex-direction: column;
