@@ -27,6 +27,8 @@ const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
 const RAM_DISCHARGE_GROWTH = 1.15;
 const RAM_EPS = 0.1; // petite tolérance pour éviter les clignotements (Mo)
+const GPU_ALGO_BONUS_PER_LVL = 0.00025; // +0.025% per level
+const GPU_FW_SAVING_PER_LVL = 0.0005; // -0.05% energy per level
 
 const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu"]);
 
@@ -166,7 +168,7 @@ const NODES = [
   {
     id: "gpuopt",
     name: "GPU Optimizer",
-    caption: "Optimise le GPU (chunk/compression)",
+    caption: "Optimise le GPU (algo/firmware)",
     type: "source",
     output: "gpuopt",
     baseRate: 0,
@@ -175,8 +177,6 @@ const NODES = [
     y: 220,
     startUnlocked: true,
     startLevel: 1,
-    chunkTier: 0,
-    compressionLevel: 0,
   },
 ];
 
@@ -344,18 +344,8 @@ function mergeBoardState(saved) {
       purchasedGpuCount: meta.id === "gpu" ? Math.max(0, nodeState.purchasedGpuCount || 0) : undefined,
       cardCount: meta.id === "gpu" ? Math.max(1, nodeState.cardCount || 1) : undefined,
       // Optimizer extended state
-      chunkTier:
-        meta.id === "gpuopt"
-          ? Math.max(0, nodeState.chunkTier || 0)
-          : meta.id === "gpu"
-          ? Math.max(0, nodeState.chunkTier || 0)
-          : undefined,
-      compressionLevel:
-        meta.id === "gpuopt"
-          ? Math.max(0, nodeState.compressionLevel || 0)
-          : meta.id === "gpu"
-          ? Math.max(0, nodeState.compressionLevel || 0)
-          : undefined,
+      algoLevel: meta.id === "gpuopt" ? Math.max(0, nodeState.algoLevel || 0) : undefined,
+      firmwareLevel: meta.id === "gpuopt" ? Math.max(0, nodeState.firmwareLevel || 0) : undefined,
     };
     if (meta.id === "ram" && merged.nodes[meta.id].level < 1) {
       merged.nodes[meta.id].level = 1;
@@ -451,8 +441,8 @@ function buildDefaultNodes() {
         : {}),
       ...(meta.id === "gpuopt"
         ? {
-            chunkTier: 0,
-            compressionLevel: 0,
+            algoLevel: 0,
+            firmwareLevel: 0,
           }
         : {}),
     };
@@ -718,6 +708,30 @@ function getGpuCompressionCost(nextLevel) {
   return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
 }
 
+function getGpuAlgoCost(nextLevel) {
+  const base = 1000;
+  const mult = 1.2;
+  return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
+}
+
+function getGpuFirmwareCost(nextLevel) {
+  const base = 1750;
+  const mult = 1.35;
+  return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
+}
+
+function pseudoRand(seed) {
+  return (Math.sin(seed * 999) + 1) / 2;
+}
+
+function formatAlgoVersion(level) {
+  if (level <= 0) return "v1.0.0";
+  const major = level;
+  const minor = Math.floor(pseudoRand(level + 3) * 10);
+  const patch = Math.floor(pseudoRand(level + 7) * 10);
+  return `v${major}.${minor}.${patch}`;
+}
+
 function getGpuChunkSize(tier) {
   if (tier < 0) return GPU_CHUNK_SIZES[0];
   if (tier >= GPU_CHUNK_SIZES.length) return GPU_CHUNK_SIZES[GPU_CHUNK_SIZES.length - 1];
@@ -732,16 +746,15 @@ function getGpuState(sourceState = state) {
     gpuCount: Math.max(1, gpu.gpuCount || 1),
     purchasedGpuCount: Math.max(0, gpu.purchasedGpuCount || 0),
     cardCount: Math.max(1, gpu.cardCount || 1),
-    chunkTier: Math.max(0, gpu.chunkTier || 0),
-    compressionLevel: Math.max(0, gpu.compressionLevel || 0),
   };
 }
 
 function getGpuOptState(sourceState = state) {
   const opt = sourceState?.nodes?.gpuopt || {};
+  const legacy = Math.max(opt.chunkTier || 0, opt.compressionLevel || 0);
   return {
-    chunkTier: Math.max(0, opt.chunkTier || 0),
-    compressionLevel: Math.max(0, opt.compressionLevel || 0),
+    algoLevel: Math.max(0, opt.algoLevel ?? legacy ?? 0),
+    firmwareLevel: Math.max(0, opt.firmwareLevel || 0),
   };
 }
 
@@ -960,67 +973,40 @@ function upgradeGpuCard() {
 }
 
 function upgradeGpuChunk() {
-  const gpu = state.nodes.gpu || {};
-  const tier = gpu.chunkTier || 0;
-  const nextTier = tier + 1;
-  if (nextTier >= GPU_CHUNK_SIZES.length) {
-    flashHint("Chunk max");
-    return;
-  }
-  const cost = getGpuChunkCost(nextTier);
-  if (state.resources.coin < cost) {
-    flashHint("Pas assez de crédits");
-    return;
-  }
-  state.resources.coin -= cost;
-  state.nodes.gpu = { ...gpu, chunkTier: nextTier, unlocked: true };
-  updateNodeCard("gpu");
-  refreshWires();
-  syncStore();
+  flashHint("Chunks retirés (utiliser l'Optimizer)");
 }
 
 function upgradeGpuCompression() {
-  const gpu = state.nodes.gpu || {};
-  const level = gpu.compressionLevel || 0;
-  const nextLevel = level + 1;
-  const cost = getGpuCompressionCost(nextLevel);
-  if (state.resources.coin < cost) {
-    flashHint("Pas assez de crédits");
-    return;
-  }
-  state.resources.coin -= cost;
-  state.nodes.gpu = { ...gpu, compressionLevel: nextLevel, unlocked: true };
-  updateNodeCard("gpu");
-  refreshWires();
-  syncStore();
+  // obsolète avec le GPU Optimizer
+  flashHint("Compression déplacée vers l'Optimizer");
 }
 
-function upgradeGpuOptChunk() {
+function upgradeGpuOptAlgo() {
   const opt = state.nodes.gpuopt || {};
-  const tier = opt.chunkTier || 0;
-  const nextTier = tier + 1;
-  const cost = getGpuChunkCost(nextTier);
+  const level = opt.algoLevel || 0;
+  const nextLevel = level + 1;
+  const cost = getGpuAlgoCost(nextLevel);
   if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
     return;
   }
   state.resources.coin -= cost;
-  state.nodes.gpuopt = { ...opt, chunkTier: nextTier, unlocked: true, level: Math.max(1, opt.level || 1) };
+  state.nodes.gpuopt = { ...opt, algoLevel: nextLevel, unlocked: true, level: Math.max(1, opt.level || 1) };
   updateNodeCard("gpuopt");
   syncStore();
 }
 
-function upgradeGpuOptCompression() {
+function upgradeGpuOptFirmware() {
   const opt = state.nodes.gpuopt || {};
-  const level = opt.compressionLevel || 0;
+  const level = opt.firmwareLevel || 0;
   const nextLevel = level + 1;
-  const cost = getGpuCompressionCost(nextLevel);
+  const cost = getGpuFirmwareCost(nextLevel);
   if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
     return;
   }
   state.resources.coin -= cost;
-  state.nodes.gpuopt = { ...opt, compressionLevel: nextLevel, unlocked: true, level: Math.max(1, opt.level || 1) };
+  state.nodes.gpuopt = { ...opt, firmwareLevel: nextLevel, unlocked: true, level: Math.max(1, opt.level || 1) };
   updateNodeCard("gpuopt");
   syncStore();
 }
@@ -1170,8 +1156,8 @@ function renderNodes() {
         ${
           meta.id === "gpu"
             ? `<div class="gpu-stats">
-                <div class="node-row small"><span>Chunk</span><span data-gpu-chunk>0 Ko</span></div>
-                <div class="node-row small"><span>Compression</span><span data-gpu-comp>0%</span></div>
+                <div class="node-row small"><span>Algo</span><span data-gpu-algo>+0.00%</span></div>
+                <div class="node-row small"><span>Firmware</span><span data-gpu-fw>0.00%</span></div>
               </div>`
             : ""
         }
@@ -1239,14 +1225,14 @@ function renderNodes() {
           meta.id === "gpuopt"
             ? `<div class="gpuopt-upgrades">
                 <div class="ram-upgrade">
-                  <div class="node-row"><span>Chunk size</span><span data-gpuopt-chunk-label>0</span></div>
-                  <button data-gpuopt-chunk-btn>Chunk +1</button>
-                  <div class="muted small" data-gpuopt-chunk-cost>Coût: 0 CXT</div>
+                  <div class="node-row"><span>Algo Updater</span><span data-gpuopt-algo-label>v1.0.0</span></div>
+                  <button data-gpuopt-algo-btn>Mettre à jour</button>
+                  <div class="muted small" data-gpuopt-algo-cost>Coût: 0 CXT</div>
                 </div>
                 <div class="ram-upgrade">
-                  <div class="node-row"><span>Compression</span><span data-gpuopt-comp-label>0%</span></div>
-                  <button data-gpuopt-comp-btn>Compression +1</button>
-                  <div class="muted small" data-gpuopt-comp-cost>Coût: 0 CXT</div>
+                  <div class="node-row"><span>Firmware</span><span data-gpuopt-fw-label>0.00%</span></div>
+                  <button data-gpuopt-fw-btn>Firmware +1</button>
+                  <div class="muted small" data-gpuopt-fw-cost>Coût: 0 CXT</div>
                 </div>
               </div>`
             : ""
@@ -1318,10 +1304,10 @@ function renderNodes() {
     gpuFreqBtn?.addEventListener("click", () => upgradeGpuFreq());
     gpuCellsBtn?.addEventListener("click", () => upgradeGpuCells());
     gpuMainBtn?.addEventListener("click", () => handleGpuMainAction());
-    const gpuOptChunkBtn = card.querySelector("[data-gpuopt-chunk-btn]");
-    const gpuOptCompBtn = card.querySelector("[data-gpuopt-comp-btn]");
-    gpuOptChunkBtn?.addEventListener("click", () => upgradeGpuOptChunk());
-    gpuOptCompBtn?.addEventListener("click", () => upgradeGpuOptCompression());
+    const gpuOptAlgoBtn = card.querySelector("[data-gpuopt-algo-btn]");
+    const gpuOptFwBtn = card.querySelector("[data-gpuopt-fw-btn]");
+    gpuOptAlgoBtn?.addEventListener("click", () => upgradeGpuOptAlgo());
+    gpuOptFwBtn?.addEventListener("click", () => upgradeGpuOptFirmware());
     card.addEventListener("pointerdown", (e) => {
       if (e.target.tagName === "BUTTON") return;
       if (!e.target.closest(".drag-handle")) return;
@@ -1354,8 +1340,8 @@ function renderNodes() {
       ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
       ramChargeRate: card.querySelector("[data-ram-charge]"),
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
-      gpuChunk: card.querySelector("[data-gpu-chunk]"),
-      gpuComp: card.querySelector("[data-gpu-comp]"),
+      gpuAlgo: card.querySelector("[data-gpu-algo]"),
+      gpuFw: card.querySelector("[data-gpu-fw]"),
       gpuCount: card.querySelector("[data-gpu-count]"),
       gpuFreq: card.querySelector("[data-gpu-freq]"),
       gpuFreqBtn: card.querySelector("[data-gpu-freq-btn]"),
@@ -1369,12 +1355,12 @@ function renderNodes() {
       gpuData: card.querySelector("[data-gpu-data]"),
       gpuHash: card.querySelector("[data-gpu-hash]"),
       gpuGrid: card.querySelector("[data-gpu-grid]"),
-      gpuOptChunkLabel: card.querySelector("[data-gpuopt-chunk-label]"),
-      gpuOptChunkBtn: card.querySelector("[data-gpuopt-chunk-btn]"),
-      gpuOptChunkCost: card.querySelector("[data-gpuopt-chunk-cost]"),
-      gpuOptCompLabel: card.querySelector("[data-gpuopt-comp-label]"),
-      gpuOptCompBtn: card.querySelector("[data-gpuopt-comp-btn]"),
-      gpuOptCompCost: card.querySelector("[data-gpuopt-comp-cost]"),
+      gpuOptAlgoLabel: card.querySelector("[data-gpuopt-algo-label]"),
+      gpuOptAlgoBtn: card.querySelector("[data-gpuopt-algo-btn]"),
+      gpuOptAlgoCost: card.querySelector("[data-gpuopt-algo-cost]"),
+      gpuOptFwLabel: card.querySelector("[data-gpuopt-fw-label]"),
+      gpuOptFwBtn: card.querySelector("[data-gpuopt-fw-btn]"),
+      gpuOptFwCost: card.querySelector("[data-gpuopt-fw-cost]"),
       cpuHash: card.querySelector("[data-cpu-hash]"),
       cpuCoin: card.querySelector("[data-cpu-coin]"),
       coresContainer: card.querySelector("[data-cores]"),
@@ -1567,23 +1553,20 @@ function updateNodeCard(id) {
     const gpuState = getGpuState();
     const optConnected = hasOptConnection("gpu") && isUnlocked("gpuopt");
     const optState = optConnected ? getGpuOptState() : null;
-    const chunkTier = optState ? optState.chunkTier : gpuState.chunkTier;
-    const compLevel = optState ? optState.compressionLevel : gpuState.compressionLevel;
-    const chunkSizeKo = getGpuChunkSize(chunkTier);
-    const hashesPerChunk = gpuHashesPerChunk(chunkSizeKo, 1, gpuCompression(compLevel));
-    const chunkSizeMo = chunkSizeKo / 1024;
+    const algoLevel = optState ? optState.algoLevel || 0 : 0;
+    const fwLevel = optState ? optState.firmwareLevel || 0 : 0;
+    const perfBoost = 1 + GPU_ALGO_BONUS_PER_LVL * algoLevel;
     const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
-    const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount;
+    const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
     const effectiveHashPerSec = Math.min(hashPerSec, cpuPerSec);
-    const chunksPerSec = hashesPerChunk > 0 ? effectiveHashPerSec / hashesPerChunk : 0;
-    const dataPerSec = chunksPerSec * chunkSizeMo;
+    const dataPerSec = GPU_HASH_PER_MO > 0 ? effectiveHashPerSec / GPU_HASH_PER_MO : 0;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
-    if (ui.gpuChunk) ui.gpuChunk.textContent = `${chunkSizeKo} Ko`;
-    if (ui.gpuComp) ui.gpuComp.textContent = `${Math.round(gpuCompression(compLevel) * 100)}%`;
+    if (ui.gpuAlgo) ui.gpuAlgo.textContent = `+${(algoLevel * GPU_ALGO_BONUS_PER_LVL * 100).toFixed(2)}%`;
+    if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Chunks conversion";
-    ui.rateEl.textContent = `${formatRate(chunksPerSec)}/s`;
+    ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
     // stocke pour la jauge d'utilisation GPU
     ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
   }
@@ -1603,17 +1586,15 @@ function updateNodeCard(id) {
     const gs = getGpuState();
     const optConnected = hasOptConnection("gpu") && isUnlocked("gpuopt");
     const optState = optConnected ? getGpuOptState() : null;
-    const chunkTier = optState ? optState.chunkTier : gs.chunkTier;
-    const compLevel = optState ? optState.compressionLevel : gs.compressionLevel;
-    const chunkSizeKo = getGpuChunkSize(chunkTier);
-    const comp = gpuCompression(compLevel);
+    const algoLevel = optState ? optState.algoLevel || 0 : 0;
+    const fwLevel = optState ? optState.firmwareLevel || 0 : 0;
     const freqMHz = gpuFreqMHz(1, gs.freqLevel);
     if (ui.gpuFreq) ui.gpuFreq.textContent = `${freqMHz.toFixed(2)} MHz`;
     if (ui.gpuCells) ui.gpuCells.textContent = `${gs.cellsPerGpu}`;
     if (ui.gpuCount) ui.gpuCount.textContent = `${gs.gpuCount} GPU · ${gs.cardCount} carte(s)`;
     if (ui.gpuCards) ui.gpuCards.textContent = `${gs.cardCount}`;
-    if (ui.gpuChunkLabel) ui.gpuChunkLabel.textContent = `${chunkSizeKo} Ko`;
-    if (ui.gpuCompLabel) ui.gpuCompLabel.textContent = `${Math.round(comp * 100)}%`;
+    if (ui.gpuAlgo) ui.gpuAlgo.textContent = `+${(algoLevel * GPU_ALGO_BONUS_PER_LVL * 100).toFixed(2)}%`;
+    if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
 
     const freqCost = getGpuFreqCost(gs.freqLevel);
     const cellsCost = getGpuCellsCost(gs.cellsPerGpu + 1);
@@ -1657,19 +1638,17 @@ function updateNodeCard(id) {
 
   if (meta.id === "gpuopt") {
     const opt = getGpuOptState();
-    const chunkSizeKo = getGpuChunkSize(opt.chunkTier);
-    const comp = gpuCompression(opt.compressionLevel);
-    const nextTier = opt.chunkTier + 1;
-    const nextComp = opt.compressionLevel + 1;
-    const chunkCost = getGpuChunkCost(nextTier);
-    const compCost = getGpuCompressionCost(nextComp);
-    if (ui.gpuOptChunkLabel) ui.gpuOptChunkLabel.textContent = `${chunkSizeKo} Ko`;
-    if (ui.gpuOptCompLabel) ui.gpuOptCompLabel.textContent = `${Math.round(comp * 100)}%`;
-    if (ui.gpuOptChunkCost) ui.gpuOptChunkCost.textContent = nextTier >= GPU_CHUNK_SIZES.length ? "Max" : `Coût: ${formatCompact(chunkCost)} CXT`;
-    if (ui.gpuOptCompCost) ui.gpuOptCompCost.textContent = `Coût: ${formatCompact(compCost)} CXT`;
-    if (ui.gpuOptChunkBtn) ui.gpuOptChunkBtn.disabled = nextTier >= GPU_CHUNK_SIZES.length || state.resources.coin < chunkCost;
-    if (ui.gpuOptCompBtn) ui.gpuOptCompBtn.disabled = state.resources.coin < compCost;
-    ui.costEl.textContent = `${formatCompact(chunkCost)} CXT`;
+    const nextAlgo = (opt.algoLevel || 0) + 1;
+    const nextFw = (opt.firmwareLevel || 0) + 1;
+    const algoCost = getGpuAlgoCost(nextAlgo);
+    const fwCost = getGpuFirmwareCost(nextFw);
+    if (ui.gpuOptAlgoLabel) ui.gpuOptAlgoLabel.textContent = formatAlgoVersion(opt.algoLevel || 0);
+    if (ui.gpuOptAlgoCost) ui.gpuOptAlgoCost.textContent = `Coût: ${formatCompact(algoCost)} CXT`;
+    if (ui.gpuOptAlgoBtn) ui.gpuOptAlgoBtn.disabled = state.resources.coin < algoCost;
+    if (ui.gpuOptFwLabel) ui.gpuOptFwLabel.textContent = `${(opt.firmwareLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
+    if (ui.gpuOptFwCost) ui.gpuOptFwCost.textContent = `Coût: ${formatCompact(fwCost)} CXT`;
+    if (ui.gpuOptFwBtn) ui.gpuOptFwBtn.disabled = state.resources.coin < fwCost;
+    ui.costEl.textContent = `${formatCompact(algoCost)} CXT`;
   }
 
   if (meta.coresMax && ui.coresContainer) {
@@ -1845,25 +1824,20 @@ function simulateProduction(delta, targetState, options = {}) {
         const gpuState = getGpuState(targetState);
         const optConnected = hasOptConnection("gpu", targetState) && isUnlocked("gpuopt");
         const optState = optConnected ? getGpuOptState(targetState) : null;
-        const chunkTier = optState ? optState.chunkTier : gpuState.chunkTier;
-        const compLevel = optState ? optState.compressionLevel : gpuState.compressionLevel;
-        const chunkSizeKo = getGpuChunkSize(chunkTier);
-        const chunkSizeMo = chunkSizeKo / 1024;
-        const comp = gpuCompression(compLevel);
-        const hashesPerChunk = gpuHashesPerChunk(chunkSizeKo, 1, comp);
+        const algoLevel = optState ? optState.algoLevel || 0 : 0;
+        const fwLevel = optState ? optState.firmwareLevel || 0 : 0;
+        const perfBoost = 1 + GPU_ALGO_BONUS_PER_LVL * algoLevel;
+        const fwFactor = Math.max(0.5, 1 - GPU_FW_SAVING_PER_LVL * fwLevel);
         const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
-        const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount;
-        const desiredChunksPerSec = hashesPerChunk > 0 ? hashCapPerSec / hashesPerChunk : 0;
-        const desiredMoPerSec = desiredChunksPerSec * chunkSizeMo;
+        const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
+        const desiredMoPerSec = GPU_HASH_PER_MO > 0 ? hashCapPerSec / GPU_HASH_PER_MO : 0;
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
-        const energyNeeded = getEnergyUse(meta, level) * delta;
+        const energyNeeded = getEnergyUse(meta, level) * fwFactor * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
         const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
-        const maxMo = actualMo; // alias de sécurité pour éviter les refs anciennes
-        const chunksProcessed = chunkSizeMo > 0 ? actualMo / chunkSizeMo : 0;
-        const hashProduced = chunksProcessed * hashesPerChunk;
+        const hashProduced = actualMo * GPU_HASH_PER_MO;
         const energyConsume = energyNeeded * energyFactor;
         let nextFill = Math.max(0, fill - actualMo);
         if (nextFill <= RAM_EPS) {
@@ -1889,7 +1863,7 @@ function simulateProduction(delta, targetState, options = {}) {
         hashCanProcess = Math.min(hashCanProcess, CPU_HASH_CAP_PER_TICK * delta);
         hashCanProcess *= energyFactor;
         const energyConsume = energyNeeded * energyFactor;
-        const coinGain = hashCanProcess * 0.0007; // 1000 hash -> 0.8 coin
+        const coinGain = hashCanProcess * 0.0007; // 1000 hash -> 0.7 coin
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
         targetState.resources.coin = (targetState.resources.coin || 0) + coinGain;
