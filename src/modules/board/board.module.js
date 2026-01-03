@@ -1203,10 +1203,14 @@ function renderNodes() {
           meta.id === "gpu"
             ? `<div class="gpu-main">
                 <div class="gpu-cards-upgrade">
-                  <div class="gpu-grid" data-gpu-grid></div>
-                  <div class="gpu-main-action">
-                    <button data-gpu-main-btn>GPU +1</button>
-                    <div class="muted small gpu-main-label" data-gpu-main-label></div>
+                  <div class="gpu-cards-left">
+                    <div class="gpu-grid" data-gpu-grid></div>
+                  </div>
+                  <div class="gpu-cards-right">
+                    <div class="gpu-main-action">
+                      <button data-gpu-main-btn>GPU +1</button>
+                      <div class="muted small gpu-main-label" data-gpu-main-label></div>
+                    </div>
                   </div>
                 </div>
               </div>

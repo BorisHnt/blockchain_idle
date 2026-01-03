@@ -74,13 +74,23 @@
 
 .gpu-card .gpu-cards-upgrade {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
   align-items: center;
   padding: 6px 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.gpu-card .gpu-cards-left {
+  padding-right: 2px;
+}
+
+.gpu-card .gpu-cards-right {
+  padding-left: 2px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .gpu-card .gpu-main-action {
