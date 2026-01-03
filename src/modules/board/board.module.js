@@ -600,14 +600,14 @@ function getRamCapLevel() {
 
 function getRamCapacity(level = getRamCapLevel()) {
   const meta = getNodeMeta("ram");
-  const base = meta?.capBase || 400;
-  const growth = meta?.capGrowth || 1.35;
+  const base = 128;
+  const growth = 1.25;
   return base * Math.pow(growth, Math.max(0, level - 1));
 }
 
 function getRamCapCost(level = getRamCapLevel()) {
   const base = 150;
-  const growth = 1.2;
+  const growth = 1.375;
   return Math.round(base * Math.pow(growth, Math.max(0, level - 1)));
 }
 
