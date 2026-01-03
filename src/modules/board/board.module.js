@@ -1067,8 +1067,8 @@ function renderNodes() {
               ? `${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}${
                   hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""
                 }${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}`
-              : `${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}${
-                  hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""
+              : `${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}${
+                  hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""
                 }${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}`
           }
         </div>

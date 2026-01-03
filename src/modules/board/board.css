@@ -342,6 +342,7 @@
 #mod-board .flow.flow-left {
   display: grid;
   grid-auto-flow: row;
+  grid-auto-rows: minmax(24px, auto);
   row-gap: 6px;
   justify-items: start;
   margin: 0;
