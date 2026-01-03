@@ -2150,30 +2150,36 @@ function updatePowerCellsUI(ui) {
         if (b.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
         grid.appendChild(cell);
       }
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "power-row-btn";
 
+      let actionEl;
       const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
       if (!b.unlocked) {
-        btn.classList.add("ghost");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "power-row-btn ghost";
         btn.disabled = true;
         btn.textContent = "Bloc verrouillé";
+        actionEl = btn;
       } else if (b.cells === POWER_CELLS_PER_BLOCK) {
-        btn.disabled = true;
-        btn.classList.add("power-full");
-        btn.innerHTML = "⚡ Super Cell";
+        const badge = document.createElement("div");
+        badge.className = "power-super";
+        badge.innerHTML = "⚡ Super Cell";
+        actionEl = badge;
       } else {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "power-row-btn";
         const nextCellIndex = b.cells + 1;
         const cost = getPowerCellCost(idx, nextCellIndex);
         const isActive = idx === activeIdx;
         btn.disabled = !isActive || state.resources.coin < cost;
         btn.innerHTML = `Power Cell<br>(${formatNumber(cost)} CXT)`;
         btn.addEventListener("click", () => addPowerCell(idx));
+        actionEl = btn;
       }
 
       row.appendChild(grid);
-      row.appendChild(btn);
+      row.appendChild(actionEl);
       ui.powerStacks.appendChild(row);
     });
   }

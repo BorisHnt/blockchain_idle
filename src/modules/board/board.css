@@ -230,12 +230,17 @@
   animation: power-full-glow 2s ease-in-out infinite;
 }
 
-#mod-board .power-section button.power-full {
-  border-color: rgba(255, 209, 102, 0.7);
+#mod-board .power-super {
+  width: 100%;
+  text-align: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 209, 102, 0.12);
+  border: 1px solid rgba(255, 209, 102, 0.45);
   color: #ffd166;
+  font-family: var(--mono);
+  font-size: 13px;
   box-shadow: 0 0 8px rgba(255, 209, 102, 0.45);
-  animation: power-full-glow 2s ease-in-out infinite;
-  pointer-events: none;
 }
 
 #mod-board .power-mult {
