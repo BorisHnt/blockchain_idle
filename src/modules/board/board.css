@@ -227,7 +227,7 @@
 }
 
 #mod-board .power-cell.full {
-  animation: power-full-glow 2s ease-in-out infinite;
+  animation: none;
 }
 
 #mod-board .power-super {
@@ -241,6 +241,7 @@
   font-family: var(--mono);
   font-size: 13px;
   box-shadow: 0 0 8px rgba(255, 209, 102, 0.45);
+  animation: none;
 }
 
 #mod-board .power-mult {
