@@ -20,7 +20,8 @@ const LAYOUT_VERSION = 3;
 const BOARD_STATE_VERSION = 4;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
-const GPU_HASH_PER_MO = 0.23; // hash produits par Mo consommé au niveau 1 (hors scaling)
+// 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
+const GPU_HASH_PER_MO = 1024;
 const HASH_PER_MHZ_PER_CELL = 1000;
 const RAM_CHARGE_BASE = 10;
 const RAM_CHARGE_GROWTH = 1.15;
@@ -1549,8 +1550,9 @@ function updateNodeCard(id) {
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
     const coinPerSec = hashPerSec * 0.0007; // 1000 hash -> 0.7 coin
+    const coinLabel = coinPerSec >= 0.01 ? formatRate(coinPerSec) : coinPerSec.toFixed(4);
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
-    if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
+    if (ui.cpuCoin) ui.cpuCoin.textContent = `${coinLabel}/s`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Hash Calculation";
     ui.rateEl.textContent = `${formatRate(hashPerSec)}/s`;
   }
@@ -1606,7 +1608,8 @@ function updateNodeCard(id) {
     if (ui.rateLabel) ui.rateLabel.textContent = "Coin Production";
     // Affiche la production réelle de coins (débit global de coin)
     const coinPerSec = resourceRates.coin || 0;
-    ui.rateEl.textContent = `${formatRate(coinPerSec)}/s`;
+    const coinLabel = coinPerSec >= 0.01 ? formatRate(coinPerSec) : coinPerSec.toFixed(4);
+    ui.rateEl.textContent = `${coinLabel}/s`;
   }
 
   if (meta.id === "gpuopt") {
