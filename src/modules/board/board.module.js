@@ -204,10 +204,16 @@ let energyBalanceRate = 0;
 let lastDelta = 1;
 const VAL_UPGRADE_Q = 1.15;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
-const CPU_HASH_PER_SEC_BASE = 110;
+const CPU_HASH_PER_SEC_BASE = 1312;
 const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
-const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256];
+const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 480, 512, 544, 576, 608, 640,
+	672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024, 1056, 1088, 1120, 1152, 1184, 1216, 1248, 1280, 1312, 1344,
+	1376, 1408, 1440, 1472, 1504, 1536, 1568, 1600, 1632, 1664, 1696, 1728, 1760, 1792, 1824, 1856, 1888, 1920, 1952, 1984,
+	2016, 2048, 2080, 2112, 2144, 2176, 2208, 2240, 2272, 2304, 2336, 2368, 2400, 2432, 2464, 2496, 2528, 2560, 2592, 2624,
+	2656, 2688, 2720, 2752, 2784, 2816, 2848, 2880, 2912, 2944, 2976, 3008, 3040, 3072, 3104, 3136, 3168, 3200, 3232, 3264,
+	3296, 3328, 3360, 3392, 3424, 3456, 3488, 3520, 3552, 3584, 3616, 3648, 3680, 3712, 3744, 3776, 3808, 3840, 3872, 3904,
+	3936, 3968, 4000, 4032, 4064, 4096];
 
 export function createBoardState() {
   return {
@@ -1585,7 +1591,7 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const coinPerSec = hashPerSec * 0.008; // 100 hash -> 0.8 coin
+    const coinPerSec = hashPerSec * 0.008; // 1312 hash -> 0.8 coin
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Hash Calculation";
