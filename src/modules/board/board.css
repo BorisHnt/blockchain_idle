@@ -230,37 +230,6 @@
   animation: power-full-glow 2s ease-in-out infinite;
 }
 
-#mod-board .power-section button {
-  width: 100%;
-  white-space: normal;
-  text-align: center;
-  line-height: 1.2;
-}
-
-#mod-board .power-row-btn {
-  width: 100%;
-  white-space: normal;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(120deg, rgba(77, 212, 255, 0.15), rgba(77, 212, 255, 0.08));
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-#mod-board .power-row-btn.ghost {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-#mod-board .power-row-btn:not(.ghost):not(.power-full):not(:disabled):hover {
-  transform: none;
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 10px 20px rgba(77, 212, 255, 0.15);
-}
-
 #mod-board .power-section button.power-full {
   border-color: rgba(255, 209, 102, 0.7);
   color: #ffd166;
