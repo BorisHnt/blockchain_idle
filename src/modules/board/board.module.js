@@ -1058,46 +1058,55 @@ function renderNodes() {
             </div>`
           : ""
       }
-      <div class="io-group ${meta.id === "energy" ? "energy-io" : ""}">
+      <div class="io-group ${meta.id === "energy" ? "energy-io" : ""} ${meta.id === "gpu" ? "gpu-io" : ""}">
         <div class="io-column io-column-left">
-          ${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}
-          ${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}
-          ${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}
-        </div>
-        <div class="${
-          meta.id === "energy"
-            ? "flow energy-flow"
-            : meta.id === "gpu"
-            ? "flow gpu-flow"
-            : hasEnergyInput(meta) || hasOptInput(meta)
-            ? "flow flow-stacked"
-            : "flow"
-        }">
           ${
-            meta.input
-              ? `<span class="pill input">In: ${label(meta.input)}</span>`
-              : meta.id === "energy" || meta.id === "validator" || meta.id === "gpuopt"
-              ? ""
-              : `<span class="pill source">Source</span>`
-          }
-          ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
-          ${
-            hasOptInput(meta)
-              ? `<span class="pill opt">In: GPU Opt</span>`
-              : ""
-          }
-          ${
-            hasOutputAnchor(meta)
-              ? `<span class="pill ${
-                  meta.output === "energy" ? "energy" : meta.output === "gpuopt" ? "opt" : "output"
-                }">Out: ${
-                  meta.output === "energy" ? "Energy" : label(meta.output)
-                }</span>`
-              : meta.id === "collector"
-              ? ""
-              : `<span class="pill output muted">Out: -</span>`
+            meta.id === "gpu"
+              ? `${hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""}${
+                  hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""
+                }${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}`
+              : `${hasEnergyInput(meta) ? `<div class="io-dot energy" title="Énergie" data-io="energy"></div>` : ""}${
+                  hasInputAnchor(meta) ? `<div class="io-dot input" title="Entrée" data-io="data"></div>` : ""
+                }${hasOptInput(meta) ? `<div class="io-dot opt" title="GPU Opt" data-io="opt"></div>` : ""}`
           }
         </div>
+        ${
+          meta.id === "gpu"
+            ? `<div class="flow gpu-flow-left">
+                <span class="pill input">In: ${label(meta.input)}</span>
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
+               </div>
+               <div class="flow gpu-flow-right">
+                 <span class="pill output">Out: ${label(meta.output)}</span>
+               </div>`
+            : `<div class="${
+                meta.id === "energy"
+                  ? "flow energy-flow"
+                  : hasEnergyInput(meta) || hasOptInput(meta)
+                  ? "flow flow-stacked"
+                  : "flow"
+              }">
+                ${
+                  meta.input
+                    ? `<span class="pill input">In: ${label(meta.input)}</span>`
+                    : meta.id === "energy" || meta.id === "validator" || meta.id === "gpuopt"
+                    ? ""
+                    : `<span class="pill source">Source</span>`
+                }
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
+                ${
+                  hasOutputAnchor(meta)
+                    ? `<span class="pill ${
+                        meta.output === "energy" ? "energy" : meta.output === "gpuopt" ? "opt" : "output"
+                      }">Out: ${meta.output === "energy" ? "Energy" : label(meta.output)}</span>`
+                    : meta.id === "collector"
+                    ? ""
+                    : `<span class="pill output muted">Out: -</span>`
+                }
+              </div>`
+        }
         <div class="io-column io-column-right">
           ${
             hasOutputAnchor(meta)
