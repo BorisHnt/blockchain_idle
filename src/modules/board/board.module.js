@@ -1155,18 +1155,18 @@ function renderNodes() {
         }
         ${
           meta.id === "gpu"
-            ? `<div class="gpu-stats">
-                <div class="node-row small"><span>Algo</span><span data-gpu-algo>+0.00%</span></div>
-                <div class="node-row small"><span>Firmware</span><span data-gpu-fw>0.00%</span></div>
-              </div>`
-            : ""
-        }
-        ${
-          meta.id === "gpu"
             ? `<div class="gpu-io-stats">
                  <div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
                  <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>
                </div>`
+            : ""
+        }
+        ${
+          meta.id === "gpu"
+            ? `<div class="gpu-stats">
+                <div class="node-row small"><span>Algo</span><span data-gpu-algo>+0.00%</span></div>
+                <div class="node-row small"><span>Firmware</span><span data-gpu-fw>0.00%</span></div>
+              </div>`
             : ""
         }
         ${
@@ -1342,6 +1342,7 @@ function renderNodes() {
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
       gpuAlgo: card.querySelector("[data-gpu-algo]"),
       gpuFw: card.querySelector("[data-gpu-fw]"),
+      gpuStats: card.querySelector(".gpu-stats"),
       gpuCount: card.querySelector("[data-gpu-count]"),
       gpuFreq: card.querySelector("[data-gpu-freq]"),
       gpuFreqBtn: card.querySelector("[data-gpu-freq-btn]"),
@@ -1564,9 +1565,10 @@ function updateNodeCard(id) {
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
     if (ui.gpuAlgo) ui.gpuAlgo.textContent = `+${(algoLevel * GPU_ALGO_BONUS_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
+    if (ui.gpuStats) ui.gpuStats.style.display = optConnected ? "" : "none";
     if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Chunks conversion";
-    ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
+    ui.rateEl.textContent = `${formatRate(effectiveHashPerSec)}/s`;
     // stocke pour la jauge d'utilisation GPU
     ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
   }
