@@ -1555,6 +1555,8 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
+    const cpuMetrics = nodeMetrics["cpu"] || { actual: 0 };
+    const cpuPerSec = cpuMetrics.actual && deltaSec > 0 ? cpuMetrics.actual / deltaSec : Infinity;
     const gpuState = getGpuState();
     const optConnected = hasOptConnection("gpu") && isUnlocked("gpuopt");
     const optState = optConnected ? getGpuOptState() : null;
@@ -1563,15 +1565,20 @@ function updateNodeCard(id) {
     const chunkSizeKo = getGpuChunkSize(chunkTier);
     const hashesPerChunk = gpuHashesPerChunk(chunkSizeKo, 1, gpuCompression(compLevel));
     const chunkSizeMo = chunkSizeKo / 1024;
-    const chunksPerSec = hashesPerChunk > 0 ? hashPerSec / hashesPerChunk : 0;
+    const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
+    const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount;
+    const effectiveHashPerSec = Math.min(hashPerSec, cpuPerSec);
+    const chunksPerSec = hashesPerChunk > 0 ? effectiveHashPerSec / hashesPerChunk : 0;
     const dataPerSec = chunksPerSec * chunkSizeMo;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
-    if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(hashPerSec)}/s`;
+    if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
     if (ui.gpuChunk) ui.gpuChunk.textContent = `${chunkSizeKo} Ko`;
     if (ui.gpuComp) ui.gpuComp.textContent = `${Math.round(gpuCompression(compLevel) * 100)}%`;
     if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Chunks conversion";
     ui.rateEl.textContent = `${formatRate(chunksPerSec)}/s`;
+    // stocke pour la jauge d'utilisation GPU
+    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
@@ -1696,6 +1703,14 @@ function updateNodeCard(id) {
       const theoretical = discharging ? getRamDischargeRate(lvl) * eff : getRamChargeRate(lvl) * eff;
       const actual = discharging ? ramState.lastOut || 0 : ramState.lastIn || 0;
       const ratio = theoretical > 0 ? clamp(Math.round((actual / theoretical) * 100), 0, 999) : 0;
+      ui.utilLabel.textContent = `${ratio}%`;
+      ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
+      ui.utilBar.classList.toggle("low", ratio < 35);
+      ui.utilBar.classList.toggle("mid", ratio >= 35 && ratio < 80);
+    } else if (meta.id === "gpu" && ui._gpuEffective) {
+      const { effectiveHashPerSec = 0, hashCapPerSec = 0 } = ui._gpuEffective;
+      const ratio =
+        hashCapPerSec > 0 ? clamp(Math.round((effectiveHashPerSec / hashCapPerSec) * 100), 0, 999) : 0;
       ui.utilLabel.textContent = `${ratio}%`;
       ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
       ui.utilBar.classList.toggle("low", ratio < 35);
