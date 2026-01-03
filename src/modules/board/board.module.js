@@ -1127,6 +1127,7 @@ function renderNodes() {
           meta.id === "gpu"
             ? `<div class="gpu-io-stats">
                  <div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
+                 <div class="node-row small"><span>Chunks</span><span data-gpu-chunks>0</span></div>
                  <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>
                </div>`
             : ""
@@ -1312,6 +1313,7 @@ function renderNodes() {
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
       gpuAlgo: card.querySelector("[data-gpu-algo]"),
       gpuFw: card.querySelector("[data-gpu-fw]"),
+      gpuChunks: card.querySelector("[data-gpu-chunks]"),
       gpuStats: card.querySelector(".gpu-stats"),
       gpuCount: card.querySelector("[data-gpu-count]"),
       gpuFreq: card.querySelector("[data-gpu-freq]"),
@@ -1533,7 +1535,9 @@ function updateNodeCard(id) {
     const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
     const effectiveHashPerSec = Math.min(hashPerSec, cpuCapPerSec);
     const dataPerSec = GPU_HASH_PER_MO > 0 ? effectiveHashPerSec / GPU_HASH_PER_MO : 0;
+    const chunksPerSec = GPU_HASH_PER_MO > 0 ? dataPerSec / (32 / 1024) : 0; // 32 Ko par chunk
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
+    if (ui.gpuChunks) ui.gpuChunks.textContent = `${formatRate(chunksPerSec)}/s`;
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
     if (ui.gpuAlgo) ui.gpuAlgo.textContent = `+${(algoLevel * GPU_ALGO_BONUS_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
