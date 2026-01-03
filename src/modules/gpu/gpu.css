@@ -1,7 +1,12 @@
 .gpu-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+}
+
+.gpu-card .node-subline {
+  margin: -2px 0 6px;
+  line-height: 1.2;
 }
 
 .gpu-card .gpu-stats {
