@@ -1722,6 +1722,12 @@ function simulateProduction(delta, targetState, options = {}) {
       const cap = getRamCapacity(capLevel);
       const currentFill = clamp(nodeState.fill || 0, 0, cap);
       const discharging = typeof nodeState.discharging === "boolean" ? nodeState.discharging : false;
+      if (discharging) {
+        // Quand la RAM se vide, on ne recharge pas pour laisser le GPU la drainer complètement.
+        if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
+        targetState.nodes.ram = { ...nodeState, fill: currentFill, discharging };
+        return;
+      }
       const chargeRate = getRamChargeRate(level) * (meta.efficiency || 1);
       const desiredCharge = chargeRate * delta;
       const energyUse = getEnergyUse(meta, level);
