@@ -321,6 +321,12 @@
   width: 100%;
 }
 
+#mod-board .io-group.paired-io {
+  grid-template-columns: 24px auto auto 24px;
+  column-gap: 10px;
+  align-items: center;
+}
+
 #mod-board .flow.flow-stacked {
   display: grid;
   grid-auto-flow: row;
@@ -331,6 +337,22 @@
 
 #mod-board .flow .pill:last-child {
   margin-left: auto;
+}
+
+#mod-board .flow.flow-left {
+  display: grid;
+  grid-auto-flow: row;
+  row-gap: 6px;
+  justify-items: start;
+  margin: 0;
+}
+
+#mod-board .flow.flow-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  margin: 0;
 }
 
 #mod-board .flow.gpu-flow {

@@ -1058,7 +1058,9 @@ function renderNodes() {
             </div>`
           : ""
       }
-      <div class="io-group ${meta.id === "energy" ? "energy-io" : ""} ${meta.id === "gpu" ? "gpu-io" : ""}">
+      <div class="io-group ${meta.id === "energy" ? "energy-io" : ""} ${meta.id === "gpu" ? "gpu-io" : ""} ${
+        meta.id !== "gpu" && (hasEnergyInput(meta) || hasInputAnchor(meta)) ? "paired-io" : ""
+      }">
         <div class="io-column io-column-left">
           ${
             meta.id === "gpu"
@@ -1080,13 +1082,24 @@ function renderNodes() {
                <div class="flow gpu-flow-right">
                  <span class="pill output">Out: ${label(meta.output)}</span>
                </div>`
-            : `<div class="${
-                meta.id === "energy"
-                  ? "flow energy-flow"
-                  : hasEnergyInput(meta) || hasOptInput(meta)
-                  ? "flow flow-stacked"
-                  : "flow"
-              }">
+            : (hasEnergyInput(meta) || hasInputAnchor(meta))
+            ? `<div class="flow flow-left">
+                ${hasInputAnchor(meta) ? `<span class="pill input">In: ${label(meta.input)}</span>` : ""}
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
+               </div>
+               <div class="flow flow-right">
+                ${
+                  hasOutputAnchor(meta)
+                    ? `<span class="pill ${meta.output === "energy" ? "energy" : meta.output === "gpuopt" ? "opt" : "output"}">Out: ${
+                        meta.output === "energy" ? "Energy" : label(meta.output)
+                      }</span>`
+                    : meta.id === "collector"
+                    ? ""
+                    : `<span class="pill output muted">Out: -</span>`
+                }
+               </div>`
+            : `<div class="${meta.id === "energy" ? "flow energy-flow" : "flow"}">
                 ${
                   meta.input
                     ? `<span class="pill input">In: ${label(meta.input)}</span>`
