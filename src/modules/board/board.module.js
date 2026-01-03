@@ -1591,7 +1591,7 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const coinPerSec = hashPerSec * 0.008; // 1312 hash -> 0.8 coin
+    const coinPerSec = hashPerSec * 0.0007; // 1000 hash -> 0.7 coin
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Hash Calculation";
