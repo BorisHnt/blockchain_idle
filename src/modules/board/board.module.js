@@ -207,13 +207,6 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1312;
 const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
-const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 480, 512, 544, 576, 608, 640,
-	672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024, 1056, 1088, 1120, 1152, 1184, 1216, 1248, 1280, 1312, 1344,
-	1376, 1408, 1440, 1472, 1504, 1536, 1568, 1600, 1632, 1664, 1696, 1728, 1760, 1792, 1824, 1856, 1888, 1920, 1952, 1984,
-	2016, 2048, 2080, 2112, 2144, 2176, 2208, 2240, 2272, 2304, 2336, 2368, 2400, 2432, 2464, 2496, 2528, 2560, 2592, 2624,
-	2656, 2688, 2720, 2752, 2784, 2816, 2848, 2880, 2912, 2944, 2976, 3008, 3040, 3072, 3104, 3136, 3168, 3200, 3232, 3264,
-	3296, 3328, 3360, 3392, 3424, 3456, 3488, 3520, 3552, 3584, 3616, 3648, 3680, 3712, 3744, 3776, 3808, 3840, 3872, 3904,
-	3936, 3968, 4000, 4032, 4064, 4096];
 
 export function createBoardState() {
   return {
@@ -666,11 +659,6 @@ function gpuCompression(level) {
   return Math.min(cap, cap * Math.pow(1 - Math.exp(-a * Math.pow(level, b)), c));
 }
 
-function gpuHashesPerChunk(chunkSizeKo, hashPerKo, compression) {
-  const base = chunkSizeKo * hashPerKo;
-  return Math.ceil(base * (1 + compression));
-}
-
 function getGpuFreqCost(currentLevel) {
   const base = 100;
   const step = 55;
@@ -694,18 +682,6 @@ function getGpuCardCost(/*cardNumber*/) {
   const gpu = getGpuState();
   const nextIndex = (gpu.purchasedGpuCount || 0) + 1;
   return getGpuCountCost(nextIndex);
-}
-
-function getGpuChunkCost(nextTier) {
-  const base = 250;
-  const mult = 1.35;
-  return Math.round(base * Math.pow(mult, Math.max(0, nextTier)));
-}
-
-function getGpuCompressionCost(nextLevel) {
-  const base = 600;
-  const mult = 1.18;
-  return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
 }
 
 function getGpuAlgoCost(nextLevel) {
@@ -732,12 +708,6 @@ function formatAlgoVersion(level) {
   return `v${major}.${minor}.${patch}`;
 }
 
-function getGpuChunkSize(tier) {
-  if (tier < 0) return GPU_CHUNK_SIZES[0];
-  if (tier >= GPU_CHUNK_SIZES.length) return GPU_CHUNK_SIZES[GPU_CHUNK_SIZES.length - 1];
-  return GPU_CHUNK_SIZES[tier];
-}
-
 function getGpuState(sourceState = state) {
   const gpu = sourceState?.nodes?.gpu || {};
   return {
@@ -751,9 +721,8 @@ function getGpuState(sourceState = state) {
 
 function getGpuOptState(sourceState = state) {
   const opt = sourceState?.nodes?.gpuopt || {};
-  const legacy = Math.max(opt.chunkTier || 0, opt.compressionLevel || 0);
   return {
-    algoLevel: Math.max(0, opt.algoLevel ?? legacy ?? 0),
+    algoLevel: Math.max(0, opt.algoLevel || 0),
     firmwareLevel: Math.max(0, opt.firmwareLevel || 0),
   };
 }
@@ -1549,8 +1518,10 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const cpuMetrics = nodeMetrics["cpu"] || { actual: 0 };
-    const cpuPerSec = cpuMetrics.actual && deltaSec > 0 ? cpuMetrics.actual / deltaSec : Infinity;
+    const cpuNode = state.nodes.cpu || {};
+    const cpuLevel = cpuNode.level || 1;
+    const cpuCores = cpuNode.cores || 1;
+    const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, cpuLevel - 1) * cpuCores;
     const gpuState = getGpuState();
     const optConnected = hasOptConnection("gpu") && isUnlocked("gpuopt");
     const optState = optConnected ? getGpuOptState() : null;
@@ -1559,7 +1530,7 @@ function updateNodeCard(id) {
     const perfBoost = 1 + GPU_ALGO_BONUS_PER_LVL * algoLevel;
     const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
     const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
-    const effectiveHashPerSec = Math.min(hashPerSec, cpuPerSec);
+    const effectiveHashPerSec = Math.min(hashPerSec, cpuCapPerSec);
     const dataPerSec = GPU_HASH_PER_MO > 0 ? effectiveHashPerSec / GPU_HASH_PER_MO : 0;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
