@@ -98,11 +98,10 @@ button {
   border-radius: 10px;
   font-family: var(--mono);
   cursor: pointer;
-  transition: transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 button:hover {
-  transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 10px 20px rgba(77, 212, 255, 0.15);
 }
