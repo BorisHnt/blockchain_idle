@@ -1688,12 +1688,26 @@ function updateNodeCard(id) {
   ui.card.classList.toggle("idle", !canRun);
 
   if (ui.utilBar && hasUtilGauge(meta)) {
-    const metrics = nodeMetrics[id] || { potential: 0, actual: 0 };
-    const ratio = metrics.potential > 0 ? clamp(Math.round((metrics.actual / metrics.potential) * 100), 0, 999) : 0;
-    ui.utilLabel.textContent = `${ratio}%`;
-    ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
-    ui.utilBar.classList.toggle("low", ratio < 35);
-    ui.utilBar.classList.toggle("mid", ratio >= 35 && ratio < 80);
+    if (meta.id === "ram") {
+      const ramState = state.nodes?.ram || {};
+      const discharging = !!ramState.discharging;
+      const lvl = ramState.level || level;
+      const eff = meta.efficiency || 1;
+      const theoretical = discharging ? getRamDischargeRate(lvl) * eff : getRamChargeRate(lvl) * eff;
+      const actual = discharging ? ramState.lastOut || 0 : ramState.lastIn || 0;
+      const ratio = theoretical > 0 ? clamp(Math.round((actual / theoretical) * 100), 0, 999) : 0;
+      ui.utilLabel.textContent = `${ratio}%`;
+      ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
+      ui.utilBar.classList.toggle("low", ratio < 35);
+      ui.utilBar.classList.toggle("mid", ratio >= 35 && ratio < 80);
+    } else {
+      const metrics = nodeMetrics[id] || { potential: 0, actual: 0 };
+      const ratio = metrics.potential > 0 ? clamp(Math.round((metrics.actual / metrics.potential) * 100), 0, 999) : 0;
+      ui.utilLabel.textContent = `${ratio}%`;
+      ui.utilBar.style.width = `${Math.min(ratio, 100)}%`;
+      ui.utilBar.classList.toggle("low", ratio < 35);
+      ui.utilBar.classList.toggle("mid", ratio >= 35 && ratio < 80);
+    }
   }
 
   if (meta.id === "energy") {
