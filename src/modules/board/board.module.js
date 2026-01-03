@@ -204,7 +204,7 @@ let energyBalanceRate = 0;
 let lastDelta = 1;
 const VAL_UPGRADE_Q = 1.15;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
-const CPU_HASH_PER_SEC_BASE = 1.1;
+const CPU_HASH_PER_SEC_BASE = 110;
 const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
 const GPU_CHUNK_SIZES = [32, 64, 96, 128, 160, 192, 224, 256];
@@ -1585,7 +1585,7 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const coinPerSec = hashPerSec; // 1 hash => 1 coin
+    const coinPerSec = hashPerSec * 0.008; // 100 hash -> 0.8 coin
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
     if (ui.rateLabel) ui.rateLabel.textContent = "Hash Calculation";
@@ -1883,13 +1883,14 @@ function simulateProduction(delta, targetState, options = {}) {
         hashCanProcess = Math.min(hashCanProcess, CPU_HASH_CAP_PER_TICK * delta);
         hashCanProcess *= energyFactor;
         const energyConsume = energyNeeded * energyFactor;
+        const coinGain = hashCanProcess * 0.008; // 100 hash -> 0.8 coin
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
-        targetState.resources.coin = (targetState.resources.coin || 0) + hashCanProcess;
+        targetState.resources.coin = (targetState.resources.coin || 0) + coinGain;
         net.energy -= energyConsume;
         net.energyConsumed += energyConsume;
         net.hash -= hashCanProcess;
-        net.coin += hashCanProcess;
+        net.coin += coinGain;
         if (metrics) metrics[meta.id] = { potential: cpuRatePerSec * delta, actual: hashCanProcess };
         return;
       }
