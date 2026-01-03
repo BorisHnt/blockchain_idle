@@ -192,10 +192,12 @@
 
 #mod-board .power-row {
   display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 #mod-board .power-row.locked {
@@ -209,6 +211,18 @@
   grid-template-rows: repeat(2, 18px);
   gap: 8px 10px;
   width: max-content;
+}
+
+#mod-board .power-row-left {
+  padding-right: 2px;
+}
+
+#mod-board .power-row-right {
+  padding-left: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 #mod-board .power-cell {
@@ -248,6 +262,8 @@
 #mod-board .power-section .power-row-btn {
   box-shadow: none !important;
   transition: none !important;
+  pointer-events: auto;
+  width: 100%;
 }
 
 #mod-board .power-section .power-row-btn:hover {

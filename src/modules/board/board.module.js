@@ -2134,55 +2134,67 @@ function updatePowerCellsUI(ui) {
 
   if (ui.powerStacks) {
     ui.powerStacks.innerHTML = "";
-    pcState.blocks.forEach((b, idx) => {
-      const row = document.createElement("div");
-      row.className = "power-row";
-      if (!b.unlocked) row.classList.add("locked");
-      if (idx === activeIdx) row.classList.add("active");
-      if (b.cells === POWER_CELLS_PER_BLOCK) row.classList.add("full");
+  pcState.blocks.forEach((b, idx) => {
+    const row = document.createElement("div");
+    row.className = "power-row";
+    if (!b.unlocked) row.classList.add("locked");
+    if (idx === activeIdx) row.classList.add("active");
+    if (b.cells === POWER_CELLS_PER_BLOCK) row.classList.add("full");
 
-      const grid = document.createElement("div");
-      grid.className = "power-grid";
-      for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
-        const cell = document.createElement("div");
-        cell.className = "power-cell";
-        if (i < b.cells) cell.classList.add("filled");
-        if (b.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
-        grid.appendChild(cell);
-      }
+    const left = document.createElement("div");
+    left.className = "power-row-left";
+    const grid = document.createElement("div");
+    grid.className = "power-grid";
+    for (let i = 0; i < POWER_CELLS_PER_BLOCK; i++) {
+      const cell = document.createElement("div");
+      cell.className = "power-cell";
+      if (i < b.cells) cell.classList.add("filled");
+      if (b.cells === POWER_CELLS_PER_BLOCK) cell.classList.add("full");
+      grid.appendChild(cell);
+    }
+    left.appendChild(grid);
 
-      let actionEl;
-      const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
-      if (!b.unlocked) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "power-row-btn ghost";
-        btn.disabled = true;
-        btn.textContent = "Bloc verrouillé";
-        actionEl = btn;
-      } else if (b.cells === POWER_CELLS_PER_BLOCK) {
-        const badge = document.createElement("div");
-        badge.className = "power-super";
-        badge.innerHTML = "⚡ Super Cell";
-        actionEl = badge;
-      } else {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "power-row-btn";
-        const nextCellIndex = b.cells + 1;
-        const cost = getPowerCellCost(idx, nextCellIndex);
-        const isActive = idx === activeIdx;
-        btn.disabled = !isActive || state.resources.coin < cost;
-        btn.innerHTML = `Power Cell<br>(${formatNumber(cost)} CXT)`;
-        btn.addEventListener("click", () => addPowerCell(idx));
-        actionEl = btn;
-      }
+    const right = document.createElement("div");
+    right.className = "power-row-right";
+    const label = document.createElement("div");
+    label.className = "muted small power-row-label";
+    label.textContent = `Bloc ${idx + 1} · Cell ${b.cells}/${POWER_CELLS_PER_BLOCK}`;
 
-      row.appendChild(grid);
-      row.appendChild(actionEl);
-      ui.powerStacks.appendChild(row);
-    });
-  }
+    const unlockEligible = idx > 0 && pcState.blocks[idx - 1]?.cells === POWER_CELLS_PER_BLOCK && !b.unlocked;
+    let actionEl;
+    if (!b.unlocked) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "power-row-btn ghost";
+      btn.disabled = true;
+      btn.textContent = "Bloc verrouillé";
+      actionEl = btn;
+    } else if (b.cells === POWER_CELLS_PER_BLOCK) {
+      const badge = document.createElement("div");
+      badge.className = "power-super";
+      badge.innerHTML = "⚡ Super Cell";
+      actionEl = badge;
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "power-row-btn";
+      const nextCellIndex = b.cells + 1;
+      const cost = getPowerCellCost(idx, nextCellIndex);
+      const isActive = idx === activeIdx;
+      btn.disabled = !isActive || state.resources.coin < cost;
+      btn.innerHTML = `Power Cell<br><span class="btn-sub">${formatCompact(cost)} CXT</span>`;
+      btn.addEventListener("click", () => addPowerCell(idx));
+      actionEl = btn;
+    }
+
+    right.appendChild(actionEl);
+    right.appendChild(label);
+
+    row.appendChild(left);
+    row.appendChild(right);
+    ui.powerStacks.appendChild(row);
+  });
+}
   if (ui.blockLabel) {
     ui.blockLabel.textContent = `Bloc ${activeIdx + 1} (${block.cells}/${POWER_CELLS_PER_BLOCK}) · +${def.power} W/cell`;
   }
