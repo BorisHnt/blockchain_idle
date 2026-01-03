@@ -51,6 +51,15 @@
   gap: 4px;
 }
 
+.gpu-card .gpu-io-stats {
+  display: grid;
+  gap: 4px;
+}
+
+.gpu-card .gpu-io-stats .node-row {
+  margin: 0;
+}
+
 .gpu-card .gpu-cell {
   width: 8px;
   height: 12px;

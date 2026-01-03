@@ -1172,14 +1172,15 @@ function renderNodes() {
             ? `<div class="gpu-stats">
                 <div class="node-row small"><span>Chunk</span><span data-gpu-chunk>0 Ko</span></div>
                 <div class="node-row small"><span>Compression</span><span data-gpu-comp>0%</span></div>
-                <div class="node-row small"><span>GPUs</span><span data-gpu-count>0</span></div>
               </div>`
             : ""
         }
         ${
           meta.id === "gpu"
-            ? `<div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
-               <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>`
+            ? `<div class="gpu-io-stats">
+                 <div class="node-row small"><span>Data</span><span data-gpu-data>0</span></div>
+                 <div class="node-row small"><span>Hash</span><span data-gpu-hash>0</span></div>
+               </div>`
             : ""
         }
         ${
@@ -1188,7 +1189,7 @@ function renderNodes() {
                <div class="node-row small"><span>Crypto</span><span data-cpu-coin>0</span></div>`
             : ""
         }
-        <div class="node-row" ${meta.id === "collector" || meta.id === "ram" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
+        <div class="node-row" ${meta.id === "collector" || meta.id === "ram" || meta.id === "gpu" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.id === "ram"
             ? `<div class="ram-upgrades">
