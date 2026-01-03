@@ -1131,7 +1131,7 @@ function renderNodes() {
         </div>
       </div>
       <div class="node-body">
-        <div class="node-row"><span>Production</span><span class="node-rate" data-rate>0/s</span></div>
+        <div class="node-row"><span data-rate-label>Production</span><span class="node-rate" data-rate>0/s</span></div>
         ${
           meta.id === "ram"
             ? `<div class="ram-meter">
@@ -1327,6 +1327,7 @@ function renderNodes() {
     bindings[meta.id] = {
       card,
       levelEl: card.querySelector("[data-level]"),
+      rateLabel: card.querySelector("[data-rate-label]"),
       rateEl: card.querySelector("[data-rate]"),
       costEl: card.querySelector("[data-cost]"),
       statusEl: card.querySelector("[data-status]"),
@@ -1478,6 +1479,7 @@ function updateNodeCard(id) {
     const canRun = (!meta.input || connected) && powered && hasInput;
 
   ui.costEl.textContent = `${formatNumber(getUpgradeCost(id))} CXT`;
+  if (ui.rateLabel) ui.rateLabel.textContent = "Production";
   const rawRate = level > 0 ? getRate(meta, level) * (meta.efficiency || 1) : 0;
   const rate =
     meta.id === "validator"
@@ -1490,6 +1492,7 @@ function updateNodeCard(id) {
   if (meta.id === "energy") {
     ui.rateEl.textContent = `${rate} W`;
   } else if (meta.id === "validator") {
+    if (ui.rateLabel) ui.rateLabel.textContent = "Débit";
     ui.rateEl.textContent = rate;
   } else {
     ui.rateEl.textContent = `${rate}/s`;
@@ -1540,6 +1543,12 @@ function updateNodeCard(id) {
     }
     if (ui.ramFillText) ui.ramFillText.textContent = `${formatBandwidth(fill).replace("/s", "")} / ${formatBandwidth(cap).replace("/s", "")}`;
     if (ui.ramFillPercent) ui.ramFillPercent.textContent = `${pct}%`;
+    if (ui.rateLabel) ui.rateLabel.textContent = "Débit";
+    const lastIn = ramState.lastIn || 0;
+    const lastOut = ramState.lastOut || 0;
+    const isDischarging = !!ramState.discharging;
+    const rateText = isDischarging ? `↓ ${formatBandwidthRate(lastOut)}` : `↑ ${formatBandwidthRate(lastIn)}`;
+    ui.rateEl.textContent = rateText;
   }
 
   if (meta.id === "gpu" && (ui.gpuData || ui.gpuHash)) {
@@ -1561,6 +1570,8 @@ function updateNodeCard(id) {
     if (ui.gpuChunk) ui.gpuChunk.textContent = `${chunkSizeKo} Ko`;
     if (ui.gpuComp) ui.gpuComp.textContent = `${Math.round(gpuCompression(compLevel) * 100)}%`;
     if (ui.gpuCount) ui.gpuCount.textContent = `${gpuState.gpuCount} GPU · ${gpuState.cardCount} carte(s)`;
+    if (ui.rateLabel) ui.rateLabel.textContent = "Chunks conversion";
+    ui.rateEl.textContent = `${formatRate(chunksPerSec)}/s`;
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
@@ -1570,6 +1581,8 @@ function updateNodeCard(id) {
     const coinPerSec = hashPerSec; // 1 hash => 1 coin
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${formatRate(coinPerSec)}/s`;
+    if (ui.rateLabel) ui.rateLabel.textContent = "Hash Calculation";
+    ui.rateEl.textContent = `${formatRate(hashPerSec)}/s`;
   }
 
   if (meta.id === "gpu") {
@@ -1619,6 +1632,14 @@ function updateNodeCard(id) {
     // Ajuste le coût principal affiché pour cohérence (même si la ligne générique est masquée).
     ui.costEl.textContent = `${formatCompact(mainCost)} CXT`;
     if (ui.gpuGrid) renderGpuGrid(ui.gpuGrid, gs);
+  }
+
+  if (meta.id === "collector") {
+    if (ui.rateLabel) ui.rateLabel.textContent = "Coin Production";
+    const metrics = nodeMetrics[id] || { actual: 0 };
+    const deltaSec = lastDelta || 1;
+    const coinPerSec = metrics.actual / deltaSec;
+    ui.rateEl.textContent = `${formatRate(coinPerSec)}/s`;
   }
 
   if (meta.id === "gpuopt") {
@@ -1725,7 +1746,7 @@ function simulateProduction(delta, targetState, options = {}) {
       if (discharging) {
         // Quand la RAM se vide, on ne recharge pas pour laisser le GPU la drainer complètement.
         if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
-        targetState.nodes.ram = { ...nodeState, fill: currentFill, discharging };
+        targetState.nodes.ram = { ...nodeState, fill: currentFill, discharging, lastIn: 0, lastOut: nodeState.lastOut || 0 };
         return;
       }
       const chargeRate = getRamChargeRate(level) * (meta.efficiency || 1);
@@ -1747,7 +1768,7 @@ function simulateProduction(delta, targetState, options = {}) {
       net.energy -= energyConsume;
       net.energyConsumed += energyConsume;
       net.bandwidth -= bandwidthConsume;
-      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge, discharging };
+      targetState.nodes.ram = { ...nodeState, fill: currentFill + charge, discharging, lastIn: charge / delta, lastOut: 0 };
       if (metrics) metrics[meta.id] = { potential: desiredCharge, actual: charge };
       return;
     }
@@ -1810,7 +1831,7 @@ function simulateProduction(delta, targetState, options = {}) {
           nextFill = 0;
           discharging = false;
         }
-        targetState.nodes.ram = { ...ramState, fill: nextFill, discharging };
+        targetState.nodes.ram = { ...ramState, fill: nextFill, discharging, lastIn: 0, lastOut: actualMo / delta };
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         net.energy -= energyConsume;
         net.energyConsumed += energyConsume;
