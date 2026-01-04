@@ -207,7 +207,7 @@ let nodeMetrics = {};
 let energyProdRate = 0;
 let energyBalanceRate = 0;
 let lastDelta = 1;
-const VAL_UPGRADE_Q = 1.15;
+const VAL_UPGRADE_Q = 1.1;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1312;
 const CPU_HASH_SCALE = 1.18;
@@ -510,7 +510,7 @@ function round1(value) {
 
 function getValidatorEnergyUse(level) {
   const base = 150;
-  const growth = 1.18;
+  const growth = 1.105;
   return round1(base * Math.pow(growth, Math.max(0, level - 1)));
 }
 
@@ -634,7 +634,7 @@ function getRate(meta, level) {
     return getEnergyOutputPerSec(level);
   }
   if (meta.id === "validator") {
-    return meta.baseRate * Math.pow(1.2, level - 1);
+    return meta.baseRate * Math.pow(1.1, level - 1);
   }
   if (meta.id === "cpu") {
     return CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1);
@@ -1340,6 +1340,7 @@ function renderNodes() {
       gpuOptFwLabel: card.querySelector("[data-gpuopt-fw-label]"),
       gpuOptFwBtn: card.querySelector("[data-gpuopt-fw-btn]"),
       gpuOptFwCost: card.querySelector("[data-gpuopt-fw-cost]"),
+      energyPill: card.querySelector(".pill.energy"),
       cpuHash: card.querySelector("[data-cpu-hash]"),
       cpuCoin: card.querySelector("[data-cpu-coin]"),
       coresContainer: card.querySelector("[data-cores]"),
@@ -1666,6 +1667,9 @@ function updateNodeCard(id) {
     ui.statusEl.style.color = canRun ? "var(--good)" : "var(--danger)";
   }
   ui.card.classList.toggle("idle", !canRun);
+  if (ui.energyPill && hasEnergyInput(meta)) {
+    ui.energyPill.textContent = `Power: ${getEnergyUse(meta, level, state).toFixed(1)}W`;
+  }
 
   if (ui.utilBar && hasUtilGauge(meta)) {
     if (meta.id === "ram") {
@@ -1767,7 +1771,9 @@ function simulateProduction(delta, targetState, options = {}) {
       let charge = desiredCharge * factor;
       const space = Math.max(0, cap - currentFill);
       if (charge > space) charge = space;
-      const energyConsume = neededEnergy * (desiredCharge > 0 ? charge / desiredCharge : 0);
+      const usageRatio = desiredCharge > 0 ? charge / desiredCharge : 0;
+      const usageScaled = 0.5 + 0.5 * usageRatio; // 50% idle floor pour la RAM
+      const energyConsume = neededEnergy * (desiredCharge > 0 ? charge / desiredCharge : 0) * usageScaled;
       const bandwidthConsume = charge;
       targetState.resources.energy = Math.max(0, availableEnergy - energyConsume);
       targetState.resources.bandwidth = Math.max(0, availableBandwidth - bandwidthConsume);
@@ -1831,14 +1837,16 @@ function simulateProduction(delta, targetState, options = {}) {
         const desiredChunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
         const desiredMoPerSec = desiredChunksPerSec * CHUNK_SIZE_MO;
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
-        const energyNeeded = getEnergyUse(meta, level, targetState) * delta;
+        const baseEnergyNeeded = getEnergyUse(meta, level, targetState) * delta;
         const energyAvail = targetState.resources.energy || 0;
-        const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+        const energyFactor = baseEnergyNeeded > 0 ? Math.min(1, energyAvail / baseEnergyNeeded) : 1;
         const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
         const chunksProcessed = CHUNK_SIZE_MO > 0 ? actualMo / CHUNK_SIZE_MO : 0;
         const hashProduced = chunksProcessed * HASHES_PER_CHUNK;
-        const energyConsume = energyNeeded * energyFactor;
+        const usageRatio = potentialMo > 0 ? actualMo / potentialMo : 0;
+        const usageScaled = 0.25 + 0.75 * usageRatio; // 25% idle floor
+        const energyConsume = baseEnergyNeeded * energyFactor * usageScaled;
         let nextFill = Math.max(0, fill - actualMo);
         if (nextFill <= RAM_EPS) {
           nextFill = 0;
@@ -1857,13 +1865,15 @@ function simulateProduction(delta, targetState, options = {}) {
       if (meta.id === "cpu") {
         const cpuRatePerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1) * (nodeState.cores || 1);
         const hashAvailable = targetState.resources.hash || 0;
-        const energyNeeded = getEnergyUse(meta, level) * delta;
+        const baseEnergyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
-        const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+        const energyFactor = baseEnergyNeeded > 0 ? Math.min(1, energyAvail / baseEnergyNeeded) : 1;
         let hashCanProcess = Math.min(hashAvailable, cpuRatePerSec * delta);
         hashCanProcess = Math.min(hashCanProcess, CPU_HASH_CAP_PER_TICK * delta);
         hashCanProcess *= energyFactor;
-        const energyConsume = energyNeeded * energyFactor;
+        const usageRatio = cpuRatePerSec > 0 ? (hashCanProcess / (cpuRatePerSec * delta)) : 0;
+        const usageScaled = 0.6 + 0.4 * usageRatio; // 60% idle floor
+        const energyConsume = baseEnergyNeeded * energyFactor * usageScaled;
         const coinGain = hashCanProcess * 0.0007; // 1000 hash -> 0.7 coin
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
