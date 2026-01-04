@@ -23,7 +23,10 @@ const TICK_MS = 250;
 // 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
 // 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
 const GPU_HASH_PER_MO = 1024;
-const HASH_PER_MHZ_PER_CELL = 1000;
+const HASHES_PER_CHUNK = 32;
+const CHUNK_SIZE_MO = 32 / 1024;
+const GPU_BASE_CHUNKS_PER_CELL = 3.2; // chunks/s à 1.0 MHz pour 1 cellule
+const HASH_PER_MHZ_PER_CELL = 1000; // legacy, remplacé par GPU_BASE_CHUNKS_PER_CELL
 const RAM_CHARGE_BASE = 10;
 const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
@@ -517,8 +520,19 @@ function getValidatorUpgradeCost(currentLevel) {
   return round1(cost);
 }
 
-function getEnergyUse(meta, level) {
+function getEnergyUse(meta, level, sourceState = state) {
   if (meta.id === "validator") return getValidatorEnergyUse(level);
+  if (meta.id === "gpu") {
+    const gpuState = sourceState?.nodes?.gpu || {};
+    const opt = sourceState?.nodes?.gpuopt || {};
+    const freqMHz = gpuFreqMHz(1, gpuState.freqLevel || 1);
+    const fwSaving = Math.max(0, Math.min(0.5, GPU_FW_SAVING_PER_LVL * (opt.firmwareLevel || 0)));
+    const baseCells = (gpuState.cellsPerGpu || 1) * (gpuState.gpuCount || 1) * 3; // 3W par cellule
+    const baseGpus = (gpuState.gpuCount || 1) * 10; // 10W par GPU
+    const baseCards = (gpuState.cardCount || 1) * 80; // 80W par carte
+    const base = baseCells + baseGpus + baseCards;
+    return base * freqMHz * (1 - fwSaving);
+  }
   return meta.energyUse || 0;
 }
 
@@ -1040,7 +1054,7 @@ function renderNodes() {
           meta.id === "gpu"
             ? `<div class="flow gpu-flow-left">
                 <span class="pill input">In: ${label(meta.input)}</span>
-                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level, state).toFixed(1)}W</span>` : ""}
                 ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
                </div>
                <div class="flow gpu-flow-right">
@@ -1049,7 +1063,7 @@ function renderNodes() {
             : (hasEnergyInput(meta) || hasInputAnchor(meta))
             ? `<div class="flow flow-left">
                 ${hasInputAnchor(meta) ? `<span class="pill input">In: ${label(meta.input)}</span>` : ""}
-                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level, state).toFixed(1)}W</span>` : ""}
                 ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
                </div>
                <div class="flow flow-right">
@@ -1071,7 +1085,7 @@ function renderNodes() {
                     ? ""
                     : `<span class="pill source">Source</span>`
                 }
-                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level)}W</span>` : ""}
+                ${hasEnergyInput(meta) ? `<span class="pill energy">Power: ${getEnergyUse(meta, level, state).toFixed(1)}W</span>` : ""}
                 ${hasOptInput(meta) ? `<span class="pill opt">In: GPU Opt</span>` : ""}
                 ${
                   hasOutputAnchor(meta)
@@ -1534,10 +1548,11 @@ function updateNodeCard(id) {
     const fwLevel = optState ? optState.firmwareLevel || 0 : 0;
     const perfBoost = 1 + GPU_ALGO_BONUS_PER_LVL * algoLevel;
     const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
-    const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
-    const effectiveHashPerSec = Math.min(hashPerSec, cpuCapPerSec);
-    const dataPerSec = GPU_HASH_PER_MO > 0 ? effectiveHashPerSec / GPU_HASH_PER_MO : 0;
-    const chunksPerSec = GPU_HASH_PER_MO > 0 ? dataPerSec / (32 / 1024) : 0; // 32 Ko par chunk
+    const chunkRateCap = GPU_BASE_CHUNKS_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
+    const cpuChunkCap = cpuCapPerSec > 0 ? (cpuCapPerSec / GPU_HASH_PER_MO) / CHUNK_SIZE_MO : Infinity;
+    const chunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
+    const dataPerSec = chunksPerSec * CHUNK_SIZE_MO;
+    const effectiveHashPerSec = chunksPerSec * HASHES_PER_CHUNK;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
     if (ui.gpuChunks) ui.gpuChunks.textContent = `${formatRate(chunksPerSec)}/s`;
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
@@ -1820,18 +1835,18 @@ function simulateProduction(delta, targetState, options = {}) {
         const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, cpuLevel - 1) * cpuCores;
         const fwFactor = Math.max(0.5, 1 - GPU_FW_SAVING_PER_LVL * fwLevel);
         const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
-        const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
-        const desiredMoPerSec =
-          GPU_HASH_PER_MO > 0 ? Math.min(hashCapPerSec, cpuCapPerSec) / GPU_HASH_PER_MO : 0;
+        const chunkRateCap = GPU_BASE_CHUNKS_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
+        const cpuChunkCap = cpuCapPerSec > 0 ? (cpuCapPerSec / GPU_HASH_PER_MO) / CHUNK_SIZE_MO : Infinity;
+        const desiredChunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
+        const desiredMoPerSec = desiredChunksPerSec * CHUNK_SIZE_MO;
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
-        const energyNeeded = getEnergyUse(meta, level) * fwFactor * delta;
+        const energyNeeded = getEnergyUse(meta, level, targetState) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
         const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
-        const chunkSizeMo = 32 / 1024;
-        const chunksProcessed = chunkSizeMo > 0 ? actualMo / chunkSizeMo : 0;
-        const hashProduced = actualMo * GPU_HASH_PER_MO;
+        const chunksProcessed = CHUNK_SIZE_MO > 0 ? actualMo / CHUNK_SIZE_MO : 0;
+        const hashProduced = chunksProcessed * HASHES_PER_CHUNK;
         const energyConsume = energyNeeded * energyFactor;
         let nextFill = Math.max(0, fill - actualMo);
         if (nextFill <= RAM_EPS) {
