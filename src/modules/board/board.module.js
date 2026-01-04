@@ -606,8 +606,8 @@ function getCoreCost(id) {
   if (!meta) return Infinity;
   const cores = getCores(id);
   if (meta.id === "cpu") {
-    const base = 100;
-    const growth = 1.18;
+    const base = 50;
+    const growth = 1.05;
     return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
   }
   const base = meta.coreCost || meta.baseCost || 100;
