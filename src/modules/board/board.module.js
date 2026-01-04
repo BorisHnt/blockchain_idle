@@ -318,12 +318,21 @@ function mergeBoardState(saved) {
   });
   NODES.forEach((meta) => {
     const nodeState = merged.nodes[meta.id] || {};
+    let lvl = typeof nodeState.level === "number" ? nodeState.level : baseNodes[meta.id].level;
+    let unlocked =
+      typeof nodeState.unlocked === "boolean"
+        ? nodeState.unlocked
+        : lvl > 0 || baseNodes[meta.id].unlocked;
+    if (meta.id === "gpuopt") {
+      // Requiert un achat explicite : si rien n'a été débloqué, on force le lock et le niveau 0.
+      if (!unlocked || lvl < 1) {
+        unlocked = false;
+        lvl = 0;
+      }
+    }
     merged.nodes[meta.id] = {
-      level: typeof nodeState.level === "number" ? nodeState.level : baseNodes[meta.id].level,
-      unlocked:
-        typeof nodeState.unlocked === "boolean"
-          ? nodeState.unlocked
-          : nodeState.level > 0 || baseNodes[meta.id].unlocked,
+      level: lvl,
+      unlocked,
       cores:
         meta.coresMax && typeof nodeState.cores === "number"
           ? nodeState.cores
@@ -349,9 +358,6 @@ function mergeBoardState(saved) {
     if (meta.id === "ram" && merged.nodes[meta.id].level < 1) {
       merged.nodes[meta.id].level = 1;
       merged.nodes[meta.id].unlocked = true;
-    }
-    if (meta.id === "gpuopt" && !merged.nodes[meta.id].unlocked) {
-      merged.nodes[meta.id].level = 0;
     }
     if (meta.id === "collector") {
       merged.nodes[meta.id].unlocked = true;
