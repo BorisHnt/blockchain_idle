@@ -350,6 +350,9 @@ function mergeBoardState(saved) {
       merged.nodes[meta.id].level = 1;
       merged.nodes[meta.id].unlocked = true;
     }
+    if (meta.id === "gpuopt" && !merged.nodes[meta.id].unlocked) {
+      merged.nodes[meta.id].level = 0;
+    }
     if (meta.id === "collector") {
       merged.nodes[meta.id].unlocked = true;
       merged.nodes[meta.id].level = Math.max(1, merged.nodes[meta.id].level || 0);
