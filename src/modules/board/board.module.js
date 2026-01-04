@@ -524,7 +524,8 @@ function getEnergyUse(meta, level, sourceState = state) {
   if (meta.id === "validator") return getValidatorEnergyUse(level);
   if (meta.id === "gpu") {
     const gpuState = sourceState?.nodes?.gpu || {};
-    const opt = sourceState?.nodes?.gpuopt || {};
+    const optConnected = hasOptConnection("gpu", sourceState) && isUnlocked("gpuopt");
+    const opt = optConnected ? sourceState?.nodes?.gpuopt || {} : {};
     const freqMHz = gpuFreqMHz(1, gpuState.freqLevel || 1);
     const fwSaving = Math.max(0, Math.min(0.5, GPU_FW_SAVING_PER_LVL * (opt.firmwareLevel || 0)));
     const baseCells = (gpuState.cellsPerGpu || 1) * (gpuState.gpuCount || 1) * 3; // 3W par cellule
