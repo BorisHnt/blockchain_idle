@@ -99,7 +99,7 @@ const NODES = [
     energyUse: 45,
     baseRate: 0.6,
     baseCost: 400,
-    unlock: { coin: 150000 },
+    unlock: { coin: 15 },
     x: 420,
     y: 540,
     startLevel: 0,
