@@ -1747,6 +1747,36 @@ function simulateProduction(delta, targetState, options = {}) {
     const potential = rate * delta;
     let work = missingInputLink || missingEnergyLink ? 0 : potential;
 
+    if (meta.id === "validator") {
+      const ramNode = targetState.nodes.ram;
+      const ramConnected = targetState.connections.some(
+        (c) => c.from === "validator" && c.to === "ram" && !isEnergyConnection(c)
+      );
+      if (ramNode && ramConnected) {
+        const ramCap = getRamCapacity(ramNode.capLevel || 1);
+        const ramFill = clamp(ramNode.fill || 0, 0, ramCap);
+        const ramSpace = Math.max(0, ramCap - ramFill);
+        const ramEff = getNodeMeta("ram")?.efficiency || 1;
+        const ramChargeCap = getRamChargeRate(ramNode.level || 1) * ramEff * delta;
+        const ramCharging = !ramNode.discharging;
+        const desired = ramCharging ? Math.min(potential, ramSpace, ramChargeCap) : 0;
+        const energyNeeded = getEnergyUse(meta, level) * delta;
+        const energyAvail = targetState.resources.energy || 0;
+        const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+        const actual = desired * energyFactor;
+        const usageRatio = desired > 0 ? actual / desired : 0;
+        const usageScaled = 0.85 + 0.15 * usageRatio; // 85% idle floor quand non utilisé
+        const energyConsume = energyNeeded * energyFactor * usageScaled;
+        targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
+        net.energy -= energyConsume;
+        net.energyConsumed += energyConsume;
+        targetState.resources.bandwidth = (targetState.resources.bandwidth || 0) + actual;
+        net.bandwidth += actual;
+        if (metrics) metrics[meta.id] = { potential, actual };
+        return;
+      }
+    }
+
     if (meta.id === "ram") {
       const capLevel = nodeState.capLevel || 1;
       const cap = getRamCapacity(capLevel);
