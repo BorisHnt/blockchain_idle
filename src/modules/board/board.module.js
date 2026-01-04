@@ -1595,7 +1595,7 @@ function updateNodeCard(id) {
     const metrics = nodeMetrics[id] || { actual: 0 };
     const deltaSec = lastDelta || 1;
     const hashPerSec = metrics.actual / deltaSec;
-    const coinPerSec = hashPerSec * 0.007; // 1000 hash -> 0.7 coin
+    const coinPerSec = hashPerSec * 0.0007; // 1000 hash -> 0.7 coin
     const coinLabel = coinPerSec >= 0.01 ? formatRate(coinPerSec) : coinPerSec.toFixed(4);
     if (ui.cpuHash) ui.cpuHash.textContent = `${formatRate(hashPerSec)}/s`;
     if (ui.cpuCoin) ui.cpuCoin.textContent = `${coinLabel}/s`;
@@ -1950,7 +1950,7 @@ function simulateProduction(delta, targetState, options = {}) {
         const usageRatio = cpuRatePerSec > 0 ? (hashCanProcess / (cpuRatePerSec * delta)) : 0;
         const usageScaled = 0.6 + 0.4 * usageRatio; // 60% idle floor
         const energyConsume = baseEnergyNeeded * energyFactor * usageScaled;
-        const coinGain = hashCanProcess * 0.007; // 1000 hash -> 0.7 coin
+        const coinGain = hashCanProcess * 0.0007; // 1000 hash -> 0.7 coin
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         targetState.resources.hash = Math.max(0, hashAvailable - hashCanProcess);
         targetState.resources.coin = (targetState.resources.coin || 0) + coinGain;
