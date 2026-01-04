@@ -1560,7 +1560,7 @@ function updateNodeCard(id) {
     const cpuNode = state.nodes.cpu || {};
     const cpuLevel = cpuNode.level || 1;
     const cpuCores = cpuNode.cores || 1;
-    const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, cpuLevel - 1) * cpuCores;
+    const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * cpuFreqMult(cpuLevel) * cpuEffectiveCores(cpuCores);
     const gpuState = getGpuState();
     const optConnected = hasOptConnection("gpu") && isUnlocked("gpuopt");
     const optState = optConnected ? getGpuOptState() : null;
@@ -1895,7 +1895,7 @@ function simulateProduction(delta, targetState, options = {}) {
         const cpuNode = targetState.nodes.cpu || {};
         const cpuLevel = cpuNode.level || 1;
         const cpuCores = cpuNode.cores || 1;
-        const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, cpuLevel - 1) * cpuCores;
+        const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * cpuFreqMult(cpuLevel) * cpuEffectiveCores(cpuCores);
         const fwFactor = Math.max(0.5, 1 - GPU_FW_SAVING_PER_LVL * fwLevel);
         const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
         const chunkRateCap = GPU_BASE_CHUNKS_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
