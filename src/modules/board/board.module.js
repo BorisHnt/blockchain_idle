@@ -1525,9 +1525,9 @@ function updateNodeCard(id) {
   }
 
   if (meta.id === "gpu" && (ui.gpuData || ui.gpuHash)) {
-    const metrics = nodeMetrics[id] || { actual: 0 };
+    const metrics = nodeMetrics[id] || { actual: 0, potential: 0 };
     const deltaSec = lastDelta || 1;
-    const hashPerSec = metrics.actual / deltaSec;
+    const hashPerSecActual = metrics.actual / deltaSec;
     const cpuNode = state.nodes.cpu || {};
     const cpuLevel = cpuNode.level || 1;
     const cpuCores = cpuNode.cores || 1;
@@ -1541,13 +1541,12 @@ function updateNodeCard(id) {
     const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
     const chunkRateCap = GPU_BASE_CHUNKS_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
     const cpuChunkCap = cpuCapPerSec > 0 ? (cpuCapPerSec / GPU_HASH_PER_MO) / CHUNK_SIZE_MO : Infinity;
-    const chunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
-    const dataPerSec = chunksPerSec * CHUNK_SIZE_MO;
-    const effectiveHashPerSec = chunksPerSec * HASHES_PER_CHUNK;
-    const hashCapPerSec = chunkRateCap * HASHES_PER_CHUNK;
-    if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
-    if (ui.gpuChunks) ui.gpuChunks.textContent = `${formatRate(chunksPerSec)}/s`;
-    if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
+    const chunksPerSecCap = Math.min(chunkRateCap, cpuChunkCap);
+    const chunksPerSecActual = hashPerSecActual / HASHES_PER_CHUNK;
+    const dataPerSecActual = chunksPerSecActual * CHUNK_SIZE_MO;
+    if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSecActual);
+    if (ui.gpuChunks) ui.gpuChunks.textContent = `${formatRate(chunksPerSecActual)}/s`;
+    if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(hashPerSecActual)}/s`;
     if (ui.gpuAlgo) ui.gpuAlgo.textContent = `+${(algoLevel * GPU_ALGO_BONUS_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuFw) ui.gpuFw.textContent = `${(fwLevel * GPU_FW_SAVING_PER_LVL * 100).toFixed(2)}%`;
     if (ui.gpuStats) ui.gpuStats.style.display = optConnected ? "" : "none";
@@ -1555,7 +1554,7 @@ function updateNodeCard(id) {
     if (ui.rateLabel) ui.rateLabel.textContent = "Data conversion";
     ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
     // stocke pour la jauge d'utilisation GPU
-    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
+    ui._gpuEffective = { effectiveHashPerSec: hashPerSecActual, hashCapPerSec: chunksPerSecCap * HASHES_PER_CHUNK };
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
