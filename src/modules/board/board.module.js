@@ -606,8 +606,8 @@ function getCoreCost(id) {
   if (!meta) return Infinity;
   const cores = getCores(id);
   if (meta.id === "cpu") {
-    const base = 50;
-    const growth = 1.05;
+    const base = 150;
+    const growth = 1.11;
     return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
   }
   const base = meta.coreCost || meta.baseCost || 100;
@@ -1683,12 +1683,12 @@ function updateNodeCard(id) {
       ui.coresContainer.appendChild(dot);
     }
     if (ui.coreBtn) {
+      const coreCost = getCoreCost(id);
       ui.coreBtn.style.display = unlocked ? "inline-flex" : "none";
-      ui.coreBtn.disabled = !unlocked || state.resources.coin < getCoreCost(id);
+      ui.coreBtn.disabled = !unlocked || state.resources.coin < coreCost;
       const nextStartsNewCpu = meta.id === "cpu" && cores > 0 && cores % 16 === 0;
-      ui.coreBtn.textContent = nextStartsNewCpu
-        ? `CPU +1 (${formatNumber(getCoreCost(id))} CXT)`
-        : `Core +1 (${formatNumber(getCoreCost(id))} CXT)`;
+      const label = nextStartsNewCpu ? "CPU +1" : "Core +1";
+      ui.coreBtn.innerHTML = `${label}<br><span class="btn-sub core-sub">${formatCompact(coreCost)} CXT</span>`;
     }
   }
 

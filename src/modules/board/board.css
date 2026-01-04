@@ -550,6 +550,17 @@
   flex-wrap: wrap;
 }
 
+#mod-board .btn-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+#mod-board .core-sub {
+  font-size: 10px;
+}
+
 #mod-board .core {
   width: 14px;
   height: 14px;
