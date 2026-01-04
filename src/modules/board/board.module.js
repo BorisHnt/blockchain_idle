@@ -603,8 +603,13 @@ function getCores(id) {
 
 function getCoreCost(id) {
   const meta = getNodeMeta(id);
-  if (!meta?.coresMax) return Infinity;
+  if (!meta) return Infinity;
   const cores = getCores(id);
+  if (meta.id === "cpu") {
+    const base = 100;
+    const growth = 1.18;
+    return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
+  }
   const base = meta.coreCost || meta.baseCost || 100;
   const growth = meta.coreGrowth || 1.35;
   return Math.round(base * Math.pow(growth, Math.max(0, cores - (meta.baseCores || 0))));
@@ -652,7 +657,10 @@ function cpuEffectiveCores(count) {
   const n = Math.max(0, count || 0);
   if (n === 0) return 0;
   const r = 0.95;
-  return (1 - Math.pow(r, n)) / (1 - r);
+  const perCpu = (k) => (1 - Math.pow(r, k)) / (1 - r);
+  const fullBlocks = Math.floor((n - 1) / 16);
+  const rem = ((n - 1) % 16) + 1;
+  return fullBlocks * perCpu(16) + perCpu(rem);
 }
 
 function getRate(meta, level) {
@@ -836,12 +844,8 @@ function handleUpgrade(id) {
 
 function addCore(id) {
   const meta = getNodeMeta(id);
-  if (!meta?.coresMax) return;
+  if (!meta?.coresMax && meta.id !== "cpu") return;
   const cores = getCores(id);
-  if (cores >= meta.coresMax) {
-    flashHint("Cores max");
-    return;
-  }
   const cost = getCoreCost(id);
   if (state.resources.coin < cost) {
     flashHint("Pas assez de crédits");
@@ -1671,16 +1675,20 @@ function updateNodeCard(id) {
   if (meta.coresMax && ui.coresContainer) {
     ui.coresContainer.innerHTML = "";
     const cores = getCores(id);
+    const visual = meta.id === "cpu" ? (cores % 16 || (cores > 0 ? 16 : 0)) : cores;
     for (let i = 0; i < meta.coresMax; i++) {
       const dot = document.createElement("div");
       dot.className = "core";
-      if (i < cores) dot.classList.add("active");
+      if (i < visual) dot.classList.add("active");
       ui.coresContainer.appendChild(dot);
     }
     if (ui.coreBtn) {
       ui.coreBtn.style.display = unlocked ? "inline-flex" : "none";
-      ui.coreBtn.disabled = !unlocked || cores >= meta.coresMax || state.resources.coin < getCoreCost(id);
-      ui.coreBtn.textContent = cores >= meta.coresMax ? "Max cores" : `Add core (${formatNumber(getCoreCost(id))} CXT)`;
+      ui.coreBtn.disabled = !unlocked || state.resources.coin < getCoreCost(id);
+      const nextStartsNewCpu = meta.id === "cpu" && cores > 0 && cores % 16 === 0;
+      ui.coreBtn.textContent = nextStartsNewCpu
+        ? `CPU +1 (${formatNumber(getCoreCost(id))} CXT)`
+        : `Core +1 (${formatNumber(getCoreCost(id))} CXT)`;
     }
   }
 
