@@ -32,10 +32,17 @@ const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
 const RAM_DISCHARGE_GROWTH = 1.15;
 const RAM_EPS = 0.1; // petite tolérance pour éviter les clignotements (Mo)
+const HDD_CHARGE_BASE = 1; // 1024 Ko/s
+const HDD_CHARGE_GROWTH = 1.12;
+const HDD_DISCHARGE_BASE = 0.5; // 512 Ko/s
+const HDD_DISCHARGE_GROWTH = 1.12;
+const HDD_CAP_BASE = 1024; // 1 Go
+const HDD_CAP_GROWTH = 1.2;
+const HDD_EPS = 0.1;
 const GPU_ALGO_BONUS_PER_LVL = 0.00025; // +0.025% per level
 const GPU_FW_SAVING_PER_LVL = 0.0005; // -0.05% energy per level
 
-const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "cpu"]);
+const UTIL_GAUGE_IDS = new Set(["validator", "gpu", "ram", "hdd", "cpu"]);
 
 const NODES = [
   {
@@ -81,6 +88,22 @@ const NODES = [
     startUnlocked: true,
     capBase: 400,
     capGrowth: 1.35,
+  },
+  {
+    id: "hdd",
+    name: "HDD Cache",
+    caption: "Stockage lent haute capacité",
+    input: "bandwidth",
+    output: "data",
+    efficiency: 1,
+    energyUse: 45,
+    baseRate: 0.6,
+    baseCost: 400,
+    unlock: { coin: 150000 },
+    x: 420,
+    y: 540,
+    startLevel: 0,
+    startUnlocked: false,
   },
   {
     id: "gpu",
@@ -389,6 +412,18 @@ function mergeBoardState(saved) {
     ...ramNode,
     fill: clamp(savedFill, 0, cap),
     discharging: typeof ramNode.discharging === "boolean" ? ramNode.discharging : false,
+    lastIn: 0,
+    lastOut: 0,
+  };
+  const hddNode = merged.nodes.hdd || {};
+  const hddCap = getHddCapacity(hddNode.capLevel || 1);
+  merged.nodes.hdd = {
+    ...hddNode,
+    fill: clamp(typeof hddNode.fill === "number" ? hddNode.fill : 0, 0, hddCap),
+    discharging: typeof hddNode.discharging === "boolean" ? hddNode.discharging : false,
+    enabled: typeof hddNode.enabled === "boolean" ? hddNode.enabled : true,
+    lastIn: 0,
+    lastOut: 0,
   };
   return merged;
 }
@@ -437,6 +472,14 @@ function buildDefaultNodes() {
       capLevel: meta.id === "ram" ? 1 : undefined,
       fill: meta.id === "ram" ? 0 : undefined,
       discharging: meta.id === "ram" ? false : undefined,
+      ...(meta.id === "hdd"
+        ? {
+            capLevel: 1,
+            fill: 0,
+            discharging: false,
+            enabled: true,
+          }
+        : {}),
       ...(meta.id === "gpu"
         ? {
             freqLevel: 1,
@@ -653,6 +696,22 @@ function getRamDischargeRate(level) {
   return RAM_DISCHARGE_BASE * Math.pow(RAM_DISCHARGE_GROWTH, Math.max(0, level - 1));
 }
 
+function getHddCapLevel() {
+  return state.nodes.hdd?.capLevel || 1;
+}
+
+function getHddCapacity(level = getHddCapLevel()) {
+  return HDD_CAP_BASE * Math.pow(HDD_CAP_GROWTH, Math.max(0, level - 1));
+}
+
+function getHddChargeRate(level) {
+  return HDD_CHARGE_BASE * Math.pow(HDD_CHARGE_GROWTH, Math.max(0, level - 1));
+}
+
+function getHddDischargeRate(level) {
+  return HDD_DISCHARGE_BASE * Math.pow(HDD_DISCHARGE_GROWTH, Math.max(0, level - 1));
+}
+
 function getCpuFreqCost(level) {
   return Math.round(50 * Math.pow(1.05, Math.max(0, level - 1)));
 }
@@ -685,6 +744,9 @@ function getRate(meta, level) {
   }
   if (meta.id === "ram") {
     return getRamChargeRate(level) * (meta.efficiency || 1);
+  }
+  if (meta.id === "hdd") {
+    return getHddChargeRate(level) * (meta.efficiency || 1);
   }
   const scale = Math.pow(1.18, level - 1);
   return meta.baseRate * scale;
@@ -865,6 +927,13 @@ function addCore(id) {
   state.nodes[id] = { ...state.nodes[id], cores: cores + 1 };
   updateNodeCard(id);
   refreshWires();
+  syncStore();
+}
+
+function setHddEnabled(enabled) {
+  const hdd = state.nodes.hdd || {};
+  state.nodes.hdd = { ...hdd, enabled };
+  updateNodeCard("hdd");
   syncStore();
 }
 
@@ -1152,6 +1221,23 @@ function renderNodes() {
                   <span class="muted" data-ram-fill-percent>0%</span>
                 </div>
               </div>`
+            : meta.id === "hdd"
+            ? `<div class="hdd-toggle">
+                <label class="hdd-switch">
+                  <input type="checkbox" data-hdd-toggle />
+                  <span class="hdd-slider"></span>
+                </label>
+                <span class="muted small" data-hdd-toggle-label>On</span>
+              </div>
+              <div class="ram-meter">
+                <div class="ram-meter-bar">
+                  <div class="ram-meter-fill" data-hdd-fill></div>
+                </div>
+                <div class="node-row ram-meter-row">
+                  <span data-hdd-fill-text>0 / 0</span>
+                  <span class="muted" data-hdd-fill-percent>0%</span>
+                </div>
+              </div>`
             : ""
         }
         ${
@@ -1167,6 +1253,11 @@ function renderNodes() {
             ? `<div class="ram-stats">
                 <div class="node-row"><span>Charge</span><span data-ram-charge>0</span></div>
                 <div class="node-row"><span>Décharge</span><span data-ram-discharge>0</span></div>
+              </div>`
+            : meta.id === "hdd"
+            ? `<div class="ram-stats">
+                <div class="node-row"><span>Charge</span><span data-hdd-charge>0</span></div>
+                <div class="node-row"><span>Décharge</span><span data-hdd-discharge>0</span></div>
               </div>`
             : ""
         }
@@ -1193,7 +1284,7 @@ function renderNodes() {
                <div class="node-row small"><span>Crypto</span><span data-cpu-coin>0</span></div>`
             : ""
         }
-        <div class="node-row" ${meta.id === "collector" || meta.id === "ram" || meta.id === "gpu" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
+        <div class="node-row" ${meta.id === "collector" || meta.id === "ram" || meta.id === "gpu" || meta.id === "hdd" ? 'style="display:none;"' : ""}><span>Coût</span><span data-cost>0</span></div>
         ${
           meta.id === "ram"
             ? `<div class="ram-upgrades">
@@ -1288,7 +1379,7 @@ function renderNodes() {
             : ""
         }
       ${
-        meta.id === "gpuopt"
+        meta.id === "gpuopt" || meta.id === "hdd"
           ? `<div class="actions">
                  <button data-unlock class="ghost">Débloquer</button>
                </div>`
@@ -1318,8 +1409,10 @@ function renderNodes() {
     }
     const ramCapBtn = card.querySelector("[data-ram-cap-btn]");
     const ramFreqBtn = card.querySelector("[data-ram-freq-btn]");
+    const hddToggle = card.querySelector("[data-hdd-toggle]");
     ramCapBtn?.addEventListener("click", () => upgradeRamCapacity());
     ramFreqBtn?.addEventListener("click", () => handleUpgrade("ram"));
+    hddToggle?.addEventListener("change", (e) => setHddEnabled(e.target.checked));
     const gpuFreqBtn = card.querySelector("[data-gpu-freq-btn]");
     const gpuCellsBtn = card.querySelector("[data-gpu-cells-btn]");
     const gpuMainBtn = card.querySelector("[data-gpu-main-btn]");
@@ -1362,6 +1455,13 @@ function renderNodes() {
       ramFillPercent: card.querySelector("[data-ram-fill-percent]"),
       ramChargeRate: card.querySelector("[data-ram-charge]"),
       ramDischargeRate: card.querySelector("[data-ram-discharge]"),
+      hddFill: card.querySelector("[data-hdd-fill]"),
+      hddFillText: card.querySelector("[data-hdd-fill-text]"),
+      hddFillPercent: card.querySelector("[data-hdd-fill-percent]"),
+      hddChargeRate: card.querySelector("[data-hdd-charge]"),
+      hddDischargeRate: card.querySelector("[data-hdd-discharge]"),
+      hddToggle,
+      hddToggleLabel: card.querySelector("[data-hdd-toggle-label]"),
       gpuAlgo: card.querySelector("[data-gpu-algo]"),
       gpuFw: card.querySelector("[data-gpu-fw]"),
       gpuChunks: card.querySelector("[data-gpu-chunks]"),
@@ -1576,6 +1676,35 @@ function updateNodeCard(id) {
     const isDischarging = !!ramState.discharging;
     const rateText = isDischarging ? `↓ ${formatBandwidthRate(lastOut)}` : `↑ ${formatBandwidthRate(lastIn)}`;
     ui.rateEl.textContent = rateText;
+  }
+
+  if (meta.id === "hdd") {
+    const hddState = state.nodes?.hdd || {};
+    const capLevel = hddState.capLevel || 1;
+    const cap = getHddCapacity(capLevel);
+    const fill = clamp(hddState.fill || 0, 0, cap);
+    const pct = cap > 0 ? Math.round((fill / cap) * 100) : 0;
+    const chargeRate = getHddChargeRate(level) * ((meta.efficiency || 1));
+    const dischargeRate = getHddDischargeRate(level) * ((meta.efficiency || 1));
+    if (ui.hddChargeRate) ui.hddChargeRate.textContent = formatBandwidthRate(chargeRate);
+    if (ui.hddDischargeRate) ui.hddDischargeRate.textContent = formatBandwidthRate(dischargeRate);
+    if (ui.hddFill) {
+      ui.hddFill.style.width = `${Math.min(100, pct)}%`;
+      ui.hddFill.style.opacity = 0.35 + (pct / 100) * 0.65;
+    }
+    if (ui.hddFillText) ui.hddFillText.textContent = `${formatBandwidth(fill).replace("/s", "")} / ${formatBandwidth(cap).replace("/s", "")}`;
+    if (ui.hddFillPercent) ui.hddFillPercent.textContent = `${pct}%`;
+    if (ui.rateLabel) ui.rateLabel.textContent = "Débit";
+    const lastIn = hddState.lastIn || 0;
+    const lastOut = hddState.lastOut || 0;
+    const isDischarging = !!hddState.discharging;
+    const rateText = isDischarging ? `↓ ${formatBandwidthRate(lastOut)}` : `↑ ${formatBandwidthRate(lastIn)}`;
+    ui.rateEl.textContent = rateText;
+    if (ui.hddToggle) {
+      ui.hddToggle.checked = hddState.enabled !== false;
+      ui.hddToggle.disabled = !unlocked;
+    }
+    if (ui.hddToggleLabel) ui.hddToggleLabel.textContent = hddState.enabled === false ? "Off" : "On";
   }
 
   if (meta.id === "gpu" && (ui.gpuData || ui.gpuHash)) {
@@ -1799,13 +1928,130 @@ function simulateProduction(delta, targetState, options = {}) {
     chunks: 0,
     hashwork: 0,
   };
+  let cachesHandled = false;
+
+  const processCaches = () => {
+    const ramMeta = getNodeMeta("ram");
+    const hddMeta = getNodeMeta("hdd");
+    const ramState = targetState.nodes.ram || {};
+    const hddState = targetState.nodes.hdd || {};
+    const ramLevel = ramState.level || 1;
+    const hddLevel = hddState.level || 0;
+    const ramUnlocked = !!ramState.unlocked;
+    const hddUnlocked = !!hddState.unlocked;
+    const ramCap = getRamCapacity(ramState.capLevel || 1);
+    const hddCap = getHddCapacity(hddState.capLevel || 1);
+    const ramFill = clamp(ramState.fill || 0, 0, ramCap);
+    const hddFill = clamp(hddState.fill || 0, 0, hddCap);
+    const ramDischarging = !!ramState.discharging;
+    const hddDischarging = !!hddState.discharging;
+    const hddEnabled = hddState.enabled !== false;
+
+    const ramHasInput = hasInputConnection("ram");
+    const hddHasInput = hasInputConnection("hdd");
+    const ramHasEnergy = hasEnergyInput(ramMeta) ? hasEnergyConnection("ram") : true;
+    const hddHasEnergy = hasEnergyInput(hddMeta) ? hasEnergyConnection("hdd") : true;
+
+    const ramChargeRate = !ramDischarging && ramUnlocked && ramHasInput && ramHasEnergy ? getRamChargeRate(ramLevel) * (ramMeta?.efficiency || 1) : 0;
+    let hddChargeRate =
+      !hddDischarging && hddEnabled && hddUnlocked && hddHasInput && hddHasEnergy
+        ? getHddChargeRate(hddLevel) * (hddMeta?.efficiency || 1)
+        : 0;
+    if (ramChargeRate > 0 && hddChargeRate > 0) {
+      hddChargeRate *= 0.75; // pénalité quand la RAM charge
+    }
+
+    const desiredRam = Math.min(ramChargeRate * delta, Math.max(0, ramCap - ramFill));
+    const desiredHdd = Math.min(hddChargeRate * delta, Math.max(0, hddCap - hddFill));
+
+    const availableBandwidth = targetState.resources.bandwidth || 0;
+    const totalDesired = desiredRam + desiredHdd;
+    const bwFactor = totalDesired > 0 ? Math.min(1, availableBandwidth / totalDesired) : 0;
+    let actualRam = desiredRam * bwFactor;
+    let actualHdd = desiredHdd * bwFactor;
+
+    let energyAvail = targetState.resources.energy || 0;
+
+    // RAM energy
+    if (actualRam > 0 && ramHasEnergy) {
+      const energyNeeded = getEnergyUse(ramMeta, ramLevel) * delta;
+      const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+      actualRam *= energyFactor;
+      const usageRatio = desiredRam > 0 ? actualRam / desiredRam : 0;
+      const usageScaled = 0.5 + 0.5 * usageRatio;
+      const energyConsume = energyNeeded * usageRatio * usageScaled;
+      energyAvail = Math.max(0, energyAvail - energyConsume);
+      net.energy -= energyConsume;
+      net.energyConsumed += energyConsume;
+    }
+
+    // HDD energy
+    if (actualHdd > 0 && hddHasEnergy) {
+      const energyNeeded = getEnergyUse(hddMeta, hddLevel) * delta;
+      const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
+      actualHdd *= energyFactor;
+      const usageRatio = desiredHdd > 0 ? actualHdd / desiredHdd : 0;
+      const usageScaled = 0.5 + 0.5 * usageRatio;
+      const energyConsume = energyNeeded * usageRatio * usageScaled;
+      energyAvail = Math.max(0, energyAvail - energyConsume);
+      net.energy -= energyConsume;
+      net.energyConsumed += energyConsume;
+    }
+
+    targetState.resources.energy = energyAvail;
+
+    const bandwidthUsed = actualRam + actualHdd;
+    targetState.resources.bandwidth = Math.max(0, availableBandwidth - bandwidthUsed);
+    net.bandwidth -= bandwidthUsed;
+    net.transfer += bandwidthUsed;
+
+    const upstreamPerSec = metrics && metrics.validator && delta > 0 ? (metrics.validator.actual || 0) / delta : null;
+    const ramInPerSec = delta > 0 ? actualRam / delta : 0;
+    const displayRamIn = upstreamPerSec != null ? Math.min(ramInPerSec, upstreamPerSec) : ramInPerSec;
+    const hddInPerSec = delta > 0 ? actualHdd / delta : 0;
+    const displayHddIn = upstreamPerSec != null ? Math.min(hddInPerSec, upstreamPerSec) : hddInPerSec;
+
+    targetState.nodes.ram = {
+      ...ramState,
+      fill: ramFill + actualRam,
+      discharging: ramDischarging,
+      lastIn: displayRamIn,
+      lastOut: 0,
+    };
+    targetState.nodes.hdd = {
+      ...hddState,
+      fill: hddFill + actualHdd,
+      discharging: hddDischarging,
+      lastIn: displayHddIn,
+      lastOut: 0,
+    };
+
+    if (metrics) {
+      metrics.ram = { potential: desiredRam, actual: actualRam };
+      metrics.hdd = { potential: desiredHdd, actual: actualHdd };
+    }
+  };
   NODES.forEach((meta) => {
+    if (meta.id === "ram" && !cachesHandled) {
+      processCaches();
+      cachesHandled = true;
+      if (metrics && !metrics.ram) metrics.ram = { potential: 0, actual: 0 };
+      return;
+    }
+    if (meta.id === "hdd") {
+      if (!cachesHandled) {
+        processCaches();
+        cachesHandled = true;
+      }
+      if (metrics && !metrics.hdd) metrics.hdd = metrics.hdd || { potential: 0, actual: 0 };
+      return;
+    }
     const nodeState = targetState.nodes[meta.id] || {};
     const level = nodeState.level || 0;
     if (!nodeState.unlocked || level <= 0) {
-    if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
-    return;
-  }
+      if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
+      return;
+    }
     const missingInputLink = meta.input && !hasInputConnection(meta.id);
     const missingEnergyLink = hasEnergyInput(meta) && !hasEnergyConnection(meta.id);
     const cores = meta.coresMax ? nodeState.cores || meta.baseCores || 0 : 1;
@@ -1814,18 +2060,35 @@ function simulateProduction(delta, targetState, options = {}) {
     let work = missingInputLink || missingEnergyLink ? 0 : potential;
 
     if (meta.id === "validator") {
-      const ramNode = targetState.nodes.ram;
+      const ramNode = targetState.nodes.ram || {};
+      const hddNode = targetState.nodes.hdd || {};
       const ramConnected = targetState.connections.some(
         (c) => c.from === "validator" && c.to === "ram" && !isEnergyConnection(c)
       );
-      if (ramNode && ramConnected) {
+      const hddConnected = targetState.connections.some(
+        (c) => c.from === "validator" && c.to === "hdd" && !isEnergyConnection(c)
+      );
+      const hasBwTarget = ramConnected || hddConnected;
+      if (hasBwTarget) {
         const ramCap = getRamCapacity(ramNode.capLevel || 1);
         const ramFill = clamp(ramNode.fill || 0, 0, ramCap);
         const ramSpace = Math.max(0, ramCap - ramFill);
         const ramEff = getNodeMeta("ram")?.efficiency || 1;
         const ramChargeCap = getRamChargeRate(ramNode.level || 1) * ramEff * delta;
-        const ramCharging = !ramNode.discharging;
-        const desired = ramCharging ? Math.min(potential, ramSpace, ramChargeCap) : 0;
+        const ramCharging = !!ramNode.unlocked && ramConnected && !ramNode.discharging;
+
+        const hddCap = getHddCapacity(hddNode.capLevel || 1);
+        const hddFill = clamp(hddNode.fill || 0, 0, hddCap);
+        const hddSpace = Math.max(0, hddCap - hddFill);
+        const hddEff = getNodeMeta("hdd")?.efficiency || 1;
+        let hddChargeCap =
+          hddNode.unlocked && hddNode.enabled !== false && hddConnected && !hddNode.discharging
+            ? getHddChargeRate(hddNode.level || 1) * hddEff * delta
+            : 0;
+        if (ramCharging && hddChargeCap > 0) hddChargeCap *= 0.75;
+
+        const desired =
+          Math.min(potential, Math.min(ramSpace, ramChargeCap) + Math.min(hddSpace, hddChargeCap));
         const energyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
@@ -1905,13 +2168,21 @@ function simulateProduction(delta, targetState, options = {}) {
     if (!missingInputLink && meta.input) {
       if (meta.id === "gpu") {
         const ramState = targetState.nodes.ram || {};
-        const cap = getRamCapacity(ramState.capLevel || 1);
-        const fill = clamp(ramState.fill || 0, 0, cap);
-        let discharging = typeof ramState.discharging === "boolean" ? ramState.discharging : false;
-        if (!discharging && fill >= cap - RAM_EPS) {
-          discharging = true;
+        const hddState = targetState.nodes.hdd || {};
+        const ramCap = getRamCapacity(ramState.capLevel || 1);
+        const hddCap = getHddCapacity(hddState.capLevel || 1);
+        let ramFill = clamp(ramState.fill || 0, 0, ramCap);
+        let hddFill = clamp(hddState.fill || 0, 0, hddCap);
+        const hddEnabled = hddState.enabled !== false;
+        let ramDischarging = typeof ramState.discharging === "boolean" ? ramState.discharging : false;
+        let hddDischarging = typeof hddState.discharging === "boolean" ? hddState.discharging : false;
+        if (!ramDischarging && ramFill >= ramCap - RAM_EPS) {
+          ramDischarging = true;
         }
-        if (!discharging) {
+        if (hddEnabled && !hddDischarging && hddFill >= hddCap - HDD_EPS) {
+          hddDischarging = true;
+        }
+        if (!ramDischarging && !hddDischarging) {
           if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
           return;
         }
@@ -1925,29 +2196,65 @@ function simulateProduction(delta, targetState, options = {}) {
         const cpuLevel = cpuNode.level || 1;
         const cpuCores = cpuNode.cores || 1;
         const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * cpuFreqMult(cpuLevel) * cpuEffectiveCores(cpuCores);
-        const fwFactor = Math.max(0.5, 1 - GPU_FW_SAVING_PER_LVL * fwLevel);
         const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
         const chunkRateCap = GPU_BASE_CHUNKS_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
         const cpuChunkCap = cpuCapPerSec > 0 ? (cpuCapPerSec / GPU_HASH_PER_MO) / CHUNK_SIZE_MO : Infinity;
         const desiredChunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
         const desiredMoPerSec = desiredChunksPerSec * CHUNK_SIZE_MO;
-        const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
         const baseEnergyNeeded = getEnergyUse(meta, level, targetState) * delta;
         const energyAvail = targetState.resources.energy || 0;
         const energyFactor = baseEnergyNeeded > 0 ? Math.min(1, energyAvail / baseEnergyNeeded) : 1;
-        const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
+        const ramDischargeRate = ramDischarging
+          ? getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1))
+          : 0;
+        let hddDischargeRate = hddEnabled && hddDischarging
+          ? getHddDischargeRate(hddState.level || 1) * ((getNodeMeta("hdd")?.efficiency || 1))
+          : 0;
+        if (ramDischarging && hddDischargeRate > 0) hddDischargeRate *= 0.75;
+
+        const supplyRam = Math.min(ramFill, ramDischargeRate * delta);
+        const supplyHdd = Math.min(hddFill, hddDischargeRate * delta);
+        const totalSupply = supplyRam + supplyHdd;
+        if (totalSupply <= 0) {
+          if (metrics) metrics[meta.id] = { potential: 0, actual: 0 };
+          return;
+        }
+        const potentialMo = Math.min(totalSupply, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
+        const ramShare = supplyRam > 0 ? supplyRam / totalSupply : 0;
+        const hddShare = supplyHdd > 0 ? supplyHdd / totalSupply : 0;
+        const actualRamMo = actualMo * ramShare;
+        const actualHddMo = actualMo * hddShare;
         const chunksProcessed = CHUNK_SIZE_MO > 0 ? actualMo / CHUNK_SIZE_MO : 0;
         const hashProduced = chunksProcessed * HASHES_PER_CHUNK;
         const usageRatio = potentialMo > 0 ? actualMo / potentialMo : 0;
         const usageScaled = 0.25 + 0.75 * usageRatio; // 25% idle floor
         const energyConsume = baseEnergyNeeded * energyFactor * usageScaled;
-        let nextFill = Math.max(0, fill - actualMo);
-        if (nextFill <= RAM_EPS) {
-          nextFill = 0;
-          discharging = false;
+        ramFill = Math.max(0, ramFill - actualRamMo);
+        hddFill = Math.max(0, hddFill - actualHddMo);
+        if (ramFill <= RAM_EPS) {
+          ramFill = 0;
+          ramDischarging = false;
         }
-        targetState.nodes.ram = { ...ramState, fill: nextFill, discharging, lastIn: 0, lastOut: actualMo / delta };
+        if (hddFill <= HDD_EPS) {
+          hddFill = 0;
+          hddDischarging = false;
+        }
+        targetState.nodes.ram = {
+          ...ramState,
+          fill: ramFill,
+          discharging: ramDischarging,
+          lastIn: 0,
+          lastOut: actualRamMo / delta,
+        };
+        targetState.nodes.hdd = {
+          ...hddState,
+          fill: hddFill,
+          discharging: hddDischarging,
+          lastIn: 0,
+          lastOut: actualHddMo / delta,
+          enabled: hddEnabled,
+        };
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         net.energy -= energyConsume;
         net.energyConsumed += energyConsume;

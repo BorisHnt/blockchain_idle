@@ -586,6 +586,70 @@
   box-shadow: 0 0 8px rgba(77, 212, 255, 0.4);
 }
 
+#mod-board .hdd-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+#mod-board .hdd-switch {
+  --secondary-container: #3a4b39;
+  --primary: #84da89;
+  font-size: 17px;
+  position: relative;
+  display: inline-block;
+  width: 3.7em;
+  height: 1.8em;
+}
+
+#mod-board .hdd-switch input {
+  display: none;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+#mod-board .hdd-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #313033;
+  transition: 0.2s;
+  border-radius: 30px;
+}
+
+#mod-board .hdd-slider::before {
+  position: absolute;
+  content: "";
+  height: 1.4em;
+  width: 1.4em;
+  border-radius: 20px;
+  left: 0.2em;
+  bottom: 0.2em;
+  background-color: #aeaaae;
+  transition: 0.4s;
+}
+
+#mod-board .hdd-switch input:checked + .hdd-slider::before {
+  background-color: var(--primary);
+}
+
+#mod-board .hdd-switch input:checked + .hdd-slider {
+  background-color: var(--secondary-container);
+}
+
+#mod-board .hdd-switch input:focus + .hdd-slider {
+  box-shadow: 0 0 1px var(--secondary-container);
+}
+
+#mod-board .hdd-switch input:checked + .hdd-slider::before {
+  transform: translateX(1.9em);
+}
+
 #mod-board .actions {
   display: flex;
   gap: 8px;
