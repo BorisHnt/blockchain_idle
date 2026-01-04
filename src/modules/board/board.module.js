@@ -110,7 +110,7 @@ const NODES = [
     y: 160,
     startLevel: 1,
     startUnlocked: true,
-    coresMax: 8,
+    coresMax: 16,
     baseCores: 1,
     coreCost: 120,
     coreGrowth: 1.4,
@@ -210,7 +210,6 @@ let lastDelta = 1;
 const VAL_UPGRADE_Q = 1.1;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1312;
-const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
 
 export function createBoardState() {
@@ -534,6 +533,13 @@ function getEnergyUse(meta, level, sourceState = state) {
     const base = baseCells + baseGpus + baseCards;
     return base * freqMHz * (1 - fwSaving);
   }
+  if (meta.id === "cpu") {
+    const cpuState = sourceState?.nodes?.cpu || {};
+    const cores = Math.max(1, cpuState.cores || 1);
+    const freqScale = cpuFreqMult(level);
+    const base = meta.energyUse || 85;
+    return base * freqScale * cores;
+  }
   return meta.energyUse || 0;
 }
 
@@ -585,6 +591,9 @@ function getUpgradeCost(id) {
   if (meta.id === "validator") {
     return getValidatorUpgradeCost(level);
   }
+  if (meta.id === "cpu") {
+    return getCpuFreqCost(level);
+  }
   return getGenericUpgradeCost(meta.baseCost, level);
 }
 
@@ -630,6 +639,22 @@ function getRamDischargeRate(level) {
   return RAM_DISCHARGE_BASE * Math.pow(RAM_DISCHARGE_GROWTH, Math.max(0, level - 1));
 }
 
+function getCpuFreqCost(level) {
+  return Math.round(50 * Math.pow(1.05, Math.max(0, level - 1)));
+}
+
+function cpuFreqMult(level) {
+  const lvl = Math.max(1, level || 1);
+  return 1 + 0.05 * (lvl - 1);
+}
+
+function cpuEffectiveCores(count) {
+  const n = Math.max(0, count || 0);
+  if (n === 0) return 0;
+  const r = 0.95;
+  return (1 - Math.pow(r, n)) / (1 - r);
+}
+
 function getRate(meta, level) {
   if (meta.id === "energy") {
     return getEnergyOutputPerSec(level);
@@ -638,7 +663,8 @@ function getRate(meta, level) {
     return meta.baseRate * Math.pow(1.1, level - 1);
   }
   if (meta.id === "cpu") {
-    return CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1);
+    const cores = state.nodes.cpu?.cores || 1;
+    return CPU_HASH_PER_SEC_BASE * cpuFreqMult(level) * cpuEffectiveCores(cores);
   }
   if (meta.id === "ram") {
     return getRamChargeRate(level) * (meta.efficiency || 1);
@@ -700,7 +726,7 @@ function getGpuAlgoCost(nextLevel) {
 
 function getGpuFirmwareCost(nextLevel) {
   const base = 1750;
-  const mult = 1.35;
+  const mult = 1.175;
   return Math.round(base * Math.pow(mult, Math.max(0, nextLevel - 1)));
 }
 
@@ -1438,7 +1464,9 @@ function updateNodeCard(id) {
   if (ui.upgradeBtn) {
     ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
     ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
-    ui.upgradeBtn.textContent = meta.id === "energy" && isEnergyOff ? "ALLUMER" : "Améliorer";
+    if (meta.id === "energy" && isEnergyOff) ui.upgradeBtn.textContent = "ALLUMER";
+    else if (meta.id === "cpu") ui.upgradeBtn.textContent = "Fréquence +1";
+    else ui.upgradeBtn.textContent = "Améliorer";
   }
 
   if (!unlocked && !isEnergyOff) {
@@ -1901,7 +1929,8 @@ function simulateProduction(delta, targetState, options = {}) {
         return;
       }
       if (meta.id === "cpu") {
-        const cpuRatePerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, level - 1) * (nodeState.cores || 1);
+        const cores = nodeState.cores || 1;
+        const cpuRatePerSec = CPU_HASH_PER_SEC_BASE * cpuFreqMult(level) * cpuEffectiveCores(cores);
         const hashAvailable = targetState.resources.hash || 0;
         const baseEnergyNeeded = getEnergyUse(meta, level) * delta;
         const energyAvail = targetState.resources.energy || 0;
