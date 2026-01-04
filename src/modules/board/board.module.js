@@ -1563,7 +1563,7 @@ function updateNodeCard(id) {
     if (ui.rateLabel) ui.rateLabel.textContent = "Data conversion";
     ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
     // stocke pour la jauge d'utilisation GPU
-    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
+    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec: chunkRateCap * HASHES_PER_CHUNK };
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
