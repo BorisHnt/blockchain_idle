@@ -540,14 +540,16 @@
 
 #mod-board .cores {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
 #mod-board .core-list {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, 14px);
+  grid-template-rows: repeat(2, 14px);
   gap: 4px;
-  flex-wrap: wrap;
+  width: calc(8 * 14px + 7 * 4px);
 }
 
 #mod-board .cores button {
