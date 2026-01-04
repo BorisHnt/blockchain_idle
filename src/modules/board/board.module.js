@@ -21,6 +21,7 @@ const BOARD_STATE_VERSION = 4;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // 12h cap
 const TICK_MS = 250;
 // 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
+// 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
 const GPU_HASH_PER_MO = 1024;
 const HASH_PER_MHZ_PER_CELL = 1000;
 const RAM_CHARGE_BASE = 10;
