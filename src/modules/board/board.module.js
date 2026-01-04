@@ -191,7 +191,7 @@ let offlineGainEl;
 
 let state;
 let bindings = {};
-let resourceRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0 };
+let resourceRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0, transfer: 0, chunks: 0, hashwork: 0 };
 let drag = null;
 let linking = null;
 let accumulator = 0;
@@ -208,10 +208,13 @@ const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1312;
 const CPU_HASH_SCALE = 1.18;
 const CPU_HASH_CAP_PER_TICK = 999999;
+// 1 chunk = 32 Ko => 32 hash => 1 hash ~ 1 Ko => ~1024 hash par Mo
+const GPU_HASH_PER_MO = 1024;
 
 export function createBoardState() {
   return {
     resources: { coin: 100_000_000_000_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
+    stats: { transfer: 0, chunks: 0, hashwork: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
     connections: [],
@@ -1364,30 +1367,19 @@ function renderNodes() {
 }
 
 function updateHud() {
+  const stats = ensureStats();
   const hud = [
-    ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
-    ["hash", "stat-hash", "rate-hash", "Hash"],
-    ["skill", "stat-skill", "rate-skill", "XP"],
+    { key: "coin", valueId: "stat-coin", rateId: "rate-coin", val: state.resources.coin || 0, rate: resourceRates.coin || 0, formatVal: (v) => `${formatNumber(v)} CXT`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "transfer", valueId: "stat-transfer", rateId: "rate-transfer", val: stats.transfer || 0, rate: resourceRates.transfer || 0, formatVal: (v) => formatBandwidth(v), formatRateFn: (v) => formatBandwidthRate(v) },
+    { key: "chunks", valueId: "stat-chunks", rateId: "rate-chunks", val: stats.chunks || 0, rate: resourceRates.chunks || 0, formatVal: (v) => `${formatNumber(v)} chunks`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "hashwork", valueId: "stat-hash", rateId: "rate-hash", val: stats.hashwork || 0, rate: resourceRates.hashwork || 0, formatVal: (v) => `${formatNumber(v)} Hash`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "skill", valueId: "stat-skill", rateId: "rate-skill", val: state.resources.skill || 0, rate: resourceRates.skill || 0, formatVal: (v) => `${formatNumber(v)} XP`, formatRateFn: (v) => `${formatRate(v)}/s` },
   ];
-  hud.forEach(([key, valueId, rateId, suffix]) => {
+  hud.forEach(({ valueId, rateId, val, rate, formatVal, formatRateFn }) => {
     const valueEl = document.getElementById(valueId);
     const rateEl = document.getElementById(rateId);
-    const val = state.resources[key] || 0;
-    if (valueEl) {
-      if (key === "bandwidth") {
-        valueEl.textContent = formatBandwidth(val);
-      } else {
-        valueEl.textContent = `${formatNumber(val)}${suffix ? ` ${suffix}` : ""}`;
-      }
-    }
-    if (rateEl) {
-      if (key === "bandwidth") {
-        rateEl.textContent = formatBandwidthRate(resourceRates[key] || 0);
-      } else {
-        rateEl.textContent = `${formatRate(resourceRates[key] || 0)}/s`;
-      }
-    }
+    if (valueEl) valueEl.textContent = formatVal(val);
+    if (rateEl) rateEl.textContent = formatRateFn(rate);
   });
 
   const energyValEl = document.getElementById("stat-energy");
@@ -1413,6 +1405,17 @@ function refreshWires() {
   if (wires) {
     wires.render(state.connections, bindings);
   }
+}
+
+function ensureStats(targetState = state) {
+  if (!targetState.stats) {
+    targetState.stats = { transfer: 0, chunks: 0, hashwork: 0 };
+  } else {
+    targetState.stats.transfer = targetState.stats.transfer || 0;
+    targetState.stats.chunks = targetState.stats.chunks || 0;
+    targetState.stats.hashwork = targetState.stats.hashwork || 0;
+  }
+  return targetState.stats;
 }
 
 function updateNodeCard(id) {
@@ -1709,6 +1712,7 @@ function runProduction(delta) {
 function simulateProduction(delta, targetState, options = {}) {
   const { recordMetrics = false } = options;
   const metrics = recordMetrics ? {} : null;
+  const stats = ensureStats(targetState);
   const net = {
     coin: 0,
     hash: 0,
@@ -1717,6 +1721,9 @@ function simulateProduction(delta, targetState, options = {}) {
     energy: 0,
     energyProduced: 0,
     energyConsumed: 0,
+    transfer: 0,
+    chunks: 0,
+    hashwork: 0,
   };
   NODES.forEach((meta) => {
     const nodeState = targetState.nodes[meta.id] || {};
@@ -1762,6 +1769,7 @@ function simulateProduction(delta, targetState, options = {}) {
       net.energy -= energyConsume;
       net.energyConsumed += energyConsume;
       net.bandwidth -= bandwidthConsume;
+      net.transfer += bandwidthConsume;
       const upstreamPerSec =
         metrics && metrics.validator && delta > 0 ? (metrics.validator.actual || 0) / delta : null;
       const inPerSec = delta > 0 ? charge / delta : 0;
@@ -1817,6 +1825,8 @@ function simulateProduction(delta, targetState, options = {}) {
         const energyFactor = energyNeeded > 0 ? Math.min(1, energyAvail / energyNeeded) : 1;
         const potentialMo = Math.min(fill, dischargeRate * delta, desiredMoPerSec * delta);
         const actualMo = potentialMo * energyFactor;
+        const chunkSizeMo = 32 / 1024;
+        const chunksProcessed = chunkSizeMo > 0 ? actualMo / chunkSizeMo : 0;
         const hashProduced = actualMo * GPU_HASH_PER_MO;
         const energyConsume = energyNeeded * energyFactor;
         let nextFill = Math.max(0, fill - actualMo);
@@ -1828,6 +1838,7 @@ function simulateProduction(delta, targetState, options = {}) {
         targetState.resources.energy = Math.max(0, energyAvail - energyConsume);
         net.energy -= energyConsume;
         net.energyConsumed += energyConsume;
+        net.chunks += chunksProcessed;
         targetState.resources.hash = (targetState.resources.hash || 0) + hashProduced;
         net.hash += hashProduced;
         if (metrics) metrics[meta.id] = { potential: hashCapPerSec * delta, actual: hashProduced };
@@ -1851,6 +1862,7 @@ function simulateProduction(delta, targetState, options = {}) {
         net.energyConsumed += energyConsume;
         net.hash -= hashCanProcess;
         net.coin += coinGain;
+        net.hashwork += hashCanProcess;
         if (metrics) metrics[meta.id] = { potential: cpuRatePerSec * delta, actual: hashCanProcess };
         return;
       }
@@ -1875,6 +1887,10 @@ function simulateProduction(delta, targetState, options = {}) {
   if (recordMetrics) {
     nodeMetrics = metrics;
   }
+  const statsTotals = ensureStats(targetState);
+  statsTotals.transfer += net.transfer || 0;
+  statsTotals.chunks += net.chunks || 0;
+  statsTotals.hashwork += net.hashwork || 0;
   return net;
 }
 

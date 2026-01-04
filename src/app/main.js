@@ -25,7 +25,7 @@ const modules = buildModules();
 let lastFrame = performance.now();
 let lastSave = performance.now();
 let lastResources = { ...store.getState().resources };
-let smoothedRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0 };
+let smoothedRates = { coin: 0, hash: 0, bandwidth: 0, skill: 0, energy: 0, transfer: 0, chunks: 0, hashwork: 0 };
 
 bootstrap();
 
@@ -84,30 +84,19 @@ function updateRates(dt) {
 
 function renderHud(resources, rates) {
   const mapping = [
-    ["coin", "stat-coin", "rate-coin", "CXT"],
-    ["bandwidth", "stat-bandwidth", "rate-bandwidth", "Bandwidth"],
-    ["hash", "stat-hash", "rate-hash", "Hash"],
-    ["energy", "stat-energy", "rate-energy", "W"],
-    ["skill", "stat-skill", "rate-skill", "XP"],
+    { key: "coin", valueId: "stat-coin", rateId: "rate-coin", formatVal: (v) => `${formatNumber(v)} CXT`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "transfer", valueId: "stat-transfer", rateId: "rate-transfer", formatVal: (v) => formatBandwidth(v), formatRateFn: (v) => formatBandwidthRate(v) },
+    { key: "chunks", valueId: "stat-chunks", rateId: "rate-chunks", formatVal: (v) => `${formatNumber(v)} chunks`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "hashwork", valueId: "stat-hash", rateId: "rate-hash", formatVal: (v) => `${formatNumber(v)} Hash`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "energy", valueId: "stat-energy", rateId: "rate-energy", formatVal: (v) => `${formatNumber(v)} W`, formatRateFn: (v) => `${formatRate(v)}/s` },
+    { key: "skill", valueId: "stat-skill", rateId: "rate-skill", formatVal: (v) => `${formatNumber(v)} XP`, formatRateFn: (v) => `${formatRate(v)}/s` },
   ];
-  mapping.forEach(([key, valueId, rateId, suffix]) => {
+  mapping.forEach(({ key, valueId, rateId, formatVal, formatRateFn }) => {
     const valueEl = document.getElementById(valueId);
     const rateEl = document.getElementById(rateId);
     const val = resources[key] || 0;
-    if (valueEl) {
-      if (key === "bandwidth") {
-        valueEl.textContent = formatBandwidth(val);
-      } else {
-        valueEl.textContent = `${formatNumber(val)}${suffix ? ` ${suffix}` : ""}`;
-      }
-    }
-    if (rateEl) {
-      if (key === "bandwidth") {
-        rateEl.textContent = formatBandwidthRate(rates[key] || 0);
-      } else {
-        rateEl.textContent = `${formatRate(rates[key] || 0)}/s`;
-      }
-    }
+    if (valueEl) valueEl.textContent = formatVal(val);
+    if (rateEl) rateEl.textContent = formatRateFn(rates[key] || 0);
   });
 }
 
