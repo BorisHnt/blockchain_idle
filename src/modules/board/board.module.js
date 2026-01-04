@@ -1814,10 +1814,15 @@ function simulateProduction(delta, targetState, options = {}) {
         const algoLevel = optState ? optState.algoLevel || 0 : 0;
         const fwLevel = optState ? optState.firmwareLevel || 0 : 0;
         const perfBoost = 1 + GPU_ALGO_BONUS_PER_LVL * algoLevel;
+        const cpuNode = targetState.nodes.cpu || {};
+        const cpuLevel = cpuNode.level || 1;
+        const cpuCores = cpuNode.cores || 1;
+        const cpuCapPerSec = CPU_HASH_PER_SEC_BASE * Math.pow(CPU_HASH_SCALE, cpuLevel - 1) * cpuCores;
         const fwFactor = Math.max(0.5, 1 - GPU_FW_SAVING_PER_LVL * fwLevel);
         const freqMHz = gpuFreqMHz(1, gpuState.freqLevel);
         const hashCapPerSec = HASH_PER_MHZ_PER_CELL * freqMHz * gpuState.cellsPerGpu * gpuState.gpuCount * perfBoost;
-        const desiredMoPerSec = GPU_HASH_PER_MO > 0 ? hashCapPerSec / GPU_HASH_PER_MO : 0;
+        const desiredMoPerSec =
+          GPU_HASH_PER_MO > 0 ? Math.min(hashCapPerSec, cpuCapPerSec) / GPU_HASH_PER_MO : 0;
         const dischargeRate = getRamDischargeRate(ramState.level || 1) * ((getNodeMeta("ram")?.efficiency || 1));
         const energyNeeded = getEnergyUse(meta, level) * fwFactor * delta;
         const energyAvail = targetState.resources.energy || 0;
