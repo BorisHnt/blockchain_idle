@@ -647,24 +647,14 @@ function getRate(meta, level) {
 }
 
 function gpuFreqMult(lvl) {
-  if (lvl <= 1) return 1.1;
-  if (lvl <= 15) {
-    const t = (lvl - 1) / 14;
-    return 1.1 + (1.075 - 1.1) * t;
-  }
-  if (lvl <= 25) {
-    const t = (lvl - 15) / 10;
-    return 1.075 + (1.05 - 1.075) * t;
-  }
-  return 1.05;
+  // Deprecated with linear frequency scaling; kept for backward compatibility if called elsewhere.
+  return 1.0;
 }
 
 function gpuFreqMHz(baseMHz, level) {
-  let f = baseMHz;
-  for (let i = 1; i <= level; i++) {
-    f *= gpuFreqMult(i);
-  }
-  return f;
+  const lvl = Math.max(1, level || 1);
+  // Fréquence linéaire : 1.00 MHz au niveau 1, +0.05 MHz par niveau
+  return baseMHz * (1 + 0.05 * (lvl - 1));
 }
 
 function gpuCompression(level) {
@@ -677,9 +667,9 @@ function gpuCompression(level) {
 }
 
 function getGpuFreqCost(currentLevel) {
-  const base = 100;
-  const step = 55;
-  return Math.round(base + step * Math.max(0, currentLevel - 1));
+  const lvl = Math.max(1, currentLevel || 1);
+  const freq = gpuFreqMHz(1, lvl); // fréquence actuelle en MHz
+  return Math.round(75 + (50 + (lvl - 1)) * freq);
 }
 
 function getGpuCellsCost(nextCount) {
@@ -1553,6 +1543,7 @@ function updateNodeCard(id) {
     const chunksPerSec = Math.min(chunkRateCap, cpuChunkCap);
     const dataPerSec = chunksPerSec * CHUNK_SIZE_MO;
     const effectiveHashPerSec = chunksPerSec * HASHES_PER_CHUNK;
+    const hashCapPerSec = chunkRateCap * HASHES_PER_CHUNK;
     if (ui.gpuData) ui.gpuData.textContent = formatBandwidthRate(dataPerSec);
     if (ui.gpuChunks) ui.gpuChunks.textContent = `${formatRate(chunksPerSec)}/s`;
     if (ui.gpuHash) ui.gpuHash.textContent = `${formatRate(effectiveHashPerSec)}/s`;
@@ -1563,7 +1554,7 @@ function updateNodeCard(id) {
     if (ui.rateLabel) ui.rateLabel.textContent = "Data conversion";
     ui.rateEl.textContent = formatBandwidthRate(dataPerSec);
     // stocke pour la jauge d'utilisation GPU
-    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec: chunkRateCap * HASHES_PER_CHUNK };
+    ui._gpuEffective = { effectiveHashPerSec, hashCapPerSec };
   }
 
   if (meta.id === "cpu" && (ui.cpuHash || ui.cpuCoin)) {
