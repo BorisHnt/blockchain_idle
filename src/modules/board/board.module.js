@@ -178,10 +178,11 @@ const NODES = [
     output: "gpuopt",
     baseRate: 0,
     baseCost: 500,
+    unlock: { coin: 1000000 },
     x: 200,
     y: 220,
-    startUnlocked: true,
-    startLevel: 1,
+    startUnlocked: false,
+    startLevel: 0,
   },
 ];
 
@@ -1278,10 +1279,14 @@ function renderNodes() {
               </div>`
             : ""
         }
-        ${
-          meta.id === "collector" || meta.id === "ram" || meta.id === "gpu" || meta.id === "gpuopt"
-            ? `<div class="actions" style="display:none;"></div>`
-            : `<div class="actions">
+      ${
+        meta.id === "gpuopt"
+          ? `<div class="actions">
+                 <button data-unlock class="ghost">Débloquer</button>
+               </div>`
+          : meta.id === "collector" || meta.id === "ram" || meta.id === "gpu"
+          ? `<div class="actions" style="display:none;"></div>`
+          : `<div class="actions">
                  <button data-unlock class="ghost">Débloquer</button>
                  <button data-upgrade>Améliorer</button>
                </div>`
