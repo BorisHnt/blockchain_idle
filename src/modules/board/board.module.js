@@ -324,11 +324,10 @@ function mergeBoardState(saved) {
         ? nodeState.unlocked
         : lvl > 0 || baseNodes[meta.id].unlocked;
     if (meta.id === "gpuopt") {
-      // Requiert un achat explicite : si rien n'a été débloqué, on force le lock et le niveau 0.
-      if (!unlocked || lvl < 1) {
-        unlocked = false;
-        lvl = 0;
-      }
+      // Toujours verrouillé par défaut, sauf si déjà acheté dans une sauvegarde valide.
+      const savedUnlocked = nodeState.unlocked === true && (nodeState.level || 0) >= 1;
+      unlocked = savedUnlocked;
+      lvl = savedUnlocked ? nodeState.level || 1 : 0;
     }
     merged.nodes[meta.id] = {
       level: lvl,
