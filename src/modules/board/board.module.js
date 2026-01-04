@@ -1470,7 +1470,14 @@ function updateNodeCard(id) {
     ui.levelEl.textContent = level;
   const isEnergyOff = meta.id === "energy" && level === 0;
   ui.card.classList.toggle("locked", !unlocked && !isEnergyOff);
-  if (ui.unlockBtn) ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+  if (ui.unlockBtn) {
+    ui.unlockBtn.style.display = unlocked || isEnergyOff ? "none" : "inline-flex";
+    if (!unlocked && meta.unlock) {
+      ui.unlockBtn.textContent = `Débloquer (${formatUnlockCost(meta.unlock)})`;
+    } else {
+      ui.unlockBtn.textContent = "Débloquer";
+    }
+  }
   if (ui.upgradeBtn) {
     ui.upgradeBtn.style.display = unlocked || isEnergyOff ? "inline-flex" : "none";
     ui.upgradeBtn.disabled = (!unlocked && !isEnergyOff) || state.resources.coin < getUpgradeCost(id);
