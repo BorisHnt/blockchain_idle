@@ -210,11 +210,11 @@ let lastDelta = 1;
 const VAL_UPGRADE_Q = 1.1;
 const VAL_UPGRADE_B = 5 / (VAL_UPGRADE_Q - 1); // impose cost(2)=125, cost(1)=60
 const CPU_HASH_PER_SEC_BASE = 1312;
-const CPU_HASH_CAP_PER_TICK = 999999;
+const CPU_HASH_CAP_PER_TICK = 9999999;
 
 export function createBoardState() {
   return {
-    resources: { coin: 100_000_000_000_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
+    resources: { coin: 10_000, hash: 0, bandwidth: 0, skill: 0, energy: 0 },
     stats: { transfer: 0, chunks: 0, hashwork: 0 },
     nodes: buildDefaultNodes(),
     layout: buildDefaultLayout(),
@@ -708,8 +708,9 @@ function getGpuFreqCost(currentLevel) {
 }
 
 function getGpuCellsCost(nextCount) {
-  const base = 250;
-  const mult = 1.14;
+  // Expo légère : base 75 CXT, croissance 1.05^(n-1)
+  const base = 65;
+  const mult = 1.05;
   return Math.round(base * Math.pow(mult, Math.max(0, nextCount - 1)));
 }
 
