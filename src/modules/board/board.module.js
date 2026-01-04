@@ -1667,7 +1667,15 @@ function updateNodeCard(id) {
   }
   ui.card.classList.toggle("idle", !canRun);
   if (ui.energyPill && hasEnergyInput(meta)) {
-    ui.energyPill.textContent = `Power: ${getEnergyUse(meta, level, state).toFixed(1)}W`;
+    const basePower = getEnergyUse(meta, level, state);
+    const m = nodeMetrics[id] || { potential: 0, actual: 0 };
+    const ratio = m.potential > 0 ? clamp(m.actual / m.potential, 0, 1) : 0;
+    let scaled = basePower;
+    if (meta.id === "gpu") scaled = basePower * (0.25 + 0.75 * ratio);
+    else if (meta.id === "ram") scaled = basePower * (0.5 + 0.5 * ratio);
+    else if (meta.id === "cpu") scaled = basePower * (0.6 + 0.4 * ratio);
+    else if (meta.id === "validator") scaled = basePower * (0.85 + 0.15 * ratio);
+    ui.energyPill.textContent = `Power: ${scaled.toFixed(1)}W`;
   }
 
   if (ui.utilBar && hasUtilGauge(meta)) {
