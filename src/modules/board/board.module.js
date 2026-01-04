@@ -1860,7 +1860,7 @@ function simulateProduction(delta, targetState, options = {}) {
         net.chunks += chunksProcessed;
         targetState.resources.hash = (targetState.resources.hash || 0) + hashProduced;
         net.hash += hashProduced;
-        if (metrics) metrics[meta.id] = { potential: hashCapPerSec * delta, actual: hashProduced };
+        if (metrics) metrics[meta.id] = { potential: desiredChunksPerSec * HASHES_PER_CHUNK * delta, actual: hashProduced };
         return;
       }
       if (meta.id === "cpu") {
