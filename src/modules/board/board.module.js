@@ -32,9 +32,9 @@ const RAM_CHARGE_GROWTH = 1.15;
 const RAM_DISCHARGE_BASE = 8;
 const RAM_DISCHARGE_GROWTH = 1.15;
 const RAM_EPS = 0.1; // petite tolérance pour éviter les clignotements (Mo)
-const HDD_CHARGE_BASE = 1; // 1024 Ko/s
+const HDD_CHARGE_BASE = 10; // 1024 Ko/s
 const HDD_CHARGE_GROWTH = 1.12;
-const HDD_DISCHARGE_BASE = 0.5; // 512 Ko/s
+const HDD_DISCHARGE_BASE = 5; // 512 Ko/s
 const HDD_DISCHARGE_GROWTH = 1.12;
 const HDD_CAP_BASE = 1024; // 1 Go
 const HDD_CAP_GROWTH = 1.2;
@@ -99,7 +99,7 @@ const NODES = [
     energyUse: 45,
     baseRate: 0.6,
     baseCost: 400,
-    unlock: { coin: 15 },
+    unlock: { coin: 150000 },
     x: 420,
     y: 540,
     startLevel: 0,
